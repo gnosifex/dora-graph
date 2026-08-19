@@ -463,7 +463,10 @@ def check_legend(html: str, js: str) -> None:
            f"{len(rows)} rows: " + ", ".join(c for c, _ in rows))
     ok("Warm" not in visible and "kühl" not in visible,
        "no warm/cool line: the nine labelled rank rows above it say the same thing")
-    ok(len(folded) < 380, "the folded notes stay under 380 characters",
+    # 520 since 2026-08-20: the non-DORA definition (both ways the dashed
+    # material connects, KWG named as the unreferenced case) earned the space —
+    # accepted by the maintainer over trimming the sentence.
+    ok(len(folded) < 520, "the folded notes stay under 520 characters",
        f"{len(folded)} chars")
     ok('id="note" hidden' in panel and 'aria-expanded="false"' in panel,
        "the notes are shut when the page loads")
