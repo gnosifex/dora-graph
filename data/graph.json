@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-08-19",
+    "generated": "2026-08-20",
     "schema": 2,
     "source": "ask-dora corpus mirror — metadata only, no mirrored text",
     "counts": {
@@ -1371,7 +1371,7 @@
       "kind": "free",
       "size": 78109,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/Aufsichtsmitteilung/dl_2025_08_21_Aufsichtsmitteilung_Hinweise_Artikel_16_DORA.pdf?__blob=publicationFile"
     },
     {
@@ -1382,7 +1382,7 @@
       "kind": "free",
       "size": 116763,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/Aufsichtsmitteilung/dl_2024_07_08_Aufsichtsmitteilung_Umsetzungshinweise_DORA.pdf?__blob=publicationFile&v=2"
     },
     {
@@ -1393,7 +1393,7 @@
       "kind": "free",
       "size": 6582,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/DE/unternehmen-maerkte/aufsicht/alle-unternehmen/dora/Meldewesen_IKT_Vorfaelle/meldewesen_ikt_vorfaelle_node.html"
     },
     {
@@ -1404,7 +1404,7 @@
       "kind": "free",
       "size": 684,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/dl_2025_08_21_Uebersicht_Artikel_16_DORA_einseitig.pdf?__blob=publicationFile"
     },
     {
@@ -1415,7 +1415,7 @@
       "kind": "free",
       "size": 881,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/dl_anlage_DORA_Dokumentationsanforderungen_1.pdf?__blob=publicationFile"
     },
     {
@@ -1503,7 +1503,7 @@
       "kind": "free",
       "size": 4668,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/dl_anlage_DORA_Hinweise_Dokumentationsanforderungen.pdf?__blob=publicationFile"
     },
     {
@@ -1514,7 +1514,7 @@
       "kind": "free",
       "size": 3451,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/dl_2025_08_21_Hinweise_Uebersicht_Artikel_16_DORA.pdf?__blob=publicationFile"
     },
     {
@@ -1525,7 +1525,7 @@
       "kind": "free",
       "size": 67,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/SharedDocs/Downloads/DE/Anlage/dl_Mindestvertragsinhalte_DORA_DE_EN.xlsx?__blob=publicationFile&v=1"
     },
     {
@@ -1569,7 +1569,7 @@
       "kind": "free",
       "size": 6252,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bafin.de/DE/unternehmen-maerkte/aufsicht/alle-unternehmen/dora/Ueberwachungsrahmen_IKT_Drittdienstleister/Ueberwachungsrahmen_IKT_Drittdienstleister_node.html"
     },
     {
@@ -1580,7 +1580,7 @@
       "kind": "free",
       "size": 90,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://publikationen.bundesbank.de/publikationen-de/berichte-studien/monatsberichte/dora-aus-der-perspektive-von-bankgeschaeftlichen-pruefungen-929550"
     },
     {
@@ -1613,7 +1613,7 @@
       "kind": "free",
       "size": 81463,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.esma.europa.eu/sites/default/files/2025-07/JC_2025_29__DORA_Guide_on_oversight_activities.pdf"
     },
     {
@@ -1624,7 +1624,7 @@
       "kind": "free",
       "size": 19699,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.esma.europa.eu/sites/default/files/2024-11/ESA_2024_22_Decision_on_reporting_of_information_for_CTPP_designation.pdf"
     },
     {
@@ -1635,7 +1635,7 @@
       "kind": "free",
       "size": 46599,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.eba.europa.eu/sites/default/files/2026-06/29b60c21-4ff3-4e1e-9308-7c8225d5cc01/ESAs%202025%20report%20on%20major%20ICT-related%20incidents.pdf"
     },
     {
@@ -1668,7 +1668,7 @@
       "kind": "free",
       "size": 4249,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.esma.europa.eu/sites/default/files/2024-12/JC_2024_99_ESAs_Statement_on_DORA_application.pdf"
     },
     {
@@ -1811,7 +1811,7 @@
       "kind": "free",
       "size": 65768,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.esma.europa.eu/sites/default/files/2024-12/ESA_2024_35_DORA_Dry_Run_exercise_summary_report.pdf"
     },
     {
@@ -1822,7 +1822,7 @@
       "kind": "free",
       "size": 68020,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bankingsupervision.europa.eu/ecb/pub/pdf/ssm.supervisory_guides202507.de.pdf"
     },
     {
@@ -1833,7 +1833,7 @@
       "kind": "free",
       "size": 48228,
       "size_estimated": false,
-      "sized": false,
+      "sized": true,
       "url": "https://www.bankingsupervision.europa.eu/ecb/pub/pdf/ssm.supervisory_guide202511.en.pdf"
     },
     {
