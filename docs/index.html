@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DORA-Regulatorik im Zeitraffer</title>
+<style>
+  :root { --bg:#0b0e14; --panel:rgba(18,23,33,.86); --line:rgba(255,255,255,.10); --fg:#e8edf6; --dim:#8f9bb0; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--fg); overflow: hidden;
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #stage { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .panel { position: fixed; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; backdrop-filter: blur(8px); }
+  #head { top: 14px; left: 14px; padding: 10px 14px; }
+  #head h1 { margin: 0 0 1px; font-size: 13px; font-weight: 600; }
+  #head .sub { color: var(--dim); font-size: 11px; }
+  #clock { margin-top: 5px; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  #counts { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+  #legend { top: 14px; right: 14px; padding: 10px 12px; max-width: 306px; }
+  #legend h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 8px; }
+  #legend h2 button { margin-left: auto; padding: 0 7px; font-size: 12px; line-height: 18px; }
+  #legend ul { margin: 0; padding: 0; list-style: none; }
+  #legend li { display: flex; align-items: center; gap: 7px; padding: 2px 4px; font-size: 11px;
+    border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
+  #legend li:hover { background: rgba(255,255,255,.07); }
+  #legend li.on { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.28); }
+  #legend.off ul, #legend.off .note { display: none; }
+  #legend .sw { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+  #legend .n { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+  #legend .note { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 11px; }
+  #legend .ring { display:inline-block; width:12px; height:12px; border-radius:50%;
+    border:1.4px solid #8f9bb0; background:rgba(143,155,176,.18); vertical-align:-2px; }
+  #legend .dash { display:inline-block; width:12px; height:12px; border-radius:50%;
+    border:1.4px dashed #8f9bb0; vertical-align:-2px; }
+  #legend .sup { display:inline-block; width:12px; height:0; vertical-align:3px;
+    border-top:1.6px dashed #B3392F; }
+  #bar { left: 14px; right: 14px; bottom: 14px; padding: 8px 12px 6px; }
+  #row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button { background: rgba(255,255,255,.07); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 7px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,.13); }
+  button.on { background: #2a3a55; border-color: #5b7fa6; }
+  #play { min-width: 88px; font-weight: 600; }
+  .grp { display: flex; gap: 4px; align-items: center; }
+  .grp .lbl { color: var(--dim); font-size: 12px; margin-right: 2px; }
+  .spacer { flex: 1 1 auto; }
+  #track { position: relative; margin-top: 8px; height: 26px; }
+  #scrub { -webkit-appearance: none; appearance: none; position: absolute; inset: 0 0 auto;
+    width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; z-index: 3; }
+  #scrub::-webkit-slider-runnable-track { height: 18px; background: transparent; }
+  #scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 18px;
+    border-radius: 4px; background: #e8edf6; border: none; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+  #rail { position: absolute; top: 7px; left: 0; right: 0; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,.12); }
+  #fill { position: absolute; top: 7px; left: 0; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg,#B3392F,#F5B301,#1D4ED8); }
+  #ticks { position: absolute; top: 16px; left: 0; right: 0; height: 14px; }
+  #ticks span { position: absolute; transform: translateX(-50%); color: var(--dim);
+    font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #ticks span::before { content: ""; position: absolute; left: 50%; top: -6px; width: 1px;
+    height: 4px; background: rgba(255,255,255,.22); }
+  #tip { position: fixed; pointer-events: none; z-index: 9; display: none;
+    background: rgba(10,13,20,.95); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 10px; max-width: 340px; font-size: 12px; line-height: 1.35; }
+  #tip .tt { font-weight: 600; }
+  #tip .td { color: var(--dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 900px) { #legend { display: none; } }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div class="panel" id="head">
+  <h1>DORA-Regulatorik im Zeitraffer</h1>
+  <div class="sub">Aufbau des Korpus entlang der echten Zeitachse</div>
+  <div id="clock">—</div>
+  <div id="counts">0 Knoten · 0 Kanten</div>
+</div>
+
+<div class="panel" id="legend">
+  <h2>Quellenhierarchie <button id="legfold" title="Legende ein-/ausklappen">–</button></h2>
+  <ul id="legend-list"></ul>
+  <div class="note">
+    Klick auf eine Zeile hebt diesen Rang hervor, ein zweiter Klick hebt es auf.<br>
+    Warm = hohe Verbindlichkeit, kühl = niedrige.<br>
+    <span class="ring"></span> Ein Kreis ist ein Rechtsakt; seine Artikel, Anhänge und
+    Paragrafen liegen darin.<br>
+    <span class="dash"></span> Gestrichelt: Umfang geschätzt — das Dokument liegt nicht
+    vollständig im Korpus (Referenzakte hochgerechnet, Standards als Seitenzahl).<br>
+    <span class="sup"></span> Rote Strichlinie: von DORA verdrängt — lang gestrichelt
+    ganz (aufgehoben), fein gepunktet teilweise (in Kraft, Teilbereich überholt).<br>
+    Knotengröße ≈ Textumfang, aber nur bei eigenständigen Dokumenten; Artikel, Q&As und
+    Aufsichtsseiten sind einheitlich klein.<br>
+    Zeitpunkt = Erstfassung des Instruments. Bestand vor 2006 ab Start sichtbar.<br>
+    Der Bestand wartet dicht um die Bildmitte; am DORA-Datum schlägt der DORA-Kreis dort
+    ein und drückt ihn auf seine Endpositionen nach außen.
+  </div>
+</div>
+
+<div class="panel" id="bar">
+  <div id="row">
+    <button id="play">▶ Abspielen</button>
+    <button id="restart">↺ Neu</button>
+    <div class="grp"><span class="lbl">Tempo</span>
+      <button class="sp" data-s="0.5">0,5×</button>
+      <button class="sp on" data-s="1">1×</button>
+      <button class="sp" data-s="2">2×</button>
+      <button class="sp" data-s="4">4×</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="grp"><span class="lbl">Zeitachse</span>
+      <button class="md on" data-m="prop">Proportional</button>
+      <button class="md" data-m="compact">Kompakt</button>
+    </div>
+  </div>
+  <div id="track">
+    <div id="rail"></div><div id="fill"></div>
+    <input id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Zeitpunkt">
+    <div id="ticks"></div>
+  </div>
+</div>
+
+<div id="tip"><div class="tt"></div><div class="td"></div></div>
+
+<script id="graph-data" type="application/json">{"generated":"2026-08-19","palette":[["rang-1","#B3392F","Rang 1 — bindendes Recht (DORA, Referenzakte)"],["rang-2","#EF5A3C","Rang 2 — RTS/ITS, bindend im Rahmen ihres Mandats"],["rang-3","#F97316","Rang 3 — Aufsichtserwartung (ESA-Leitlinien, nationale Anwendung)"],["rang-4","#F5B301","Rang 4 — ESA-Q&As, Auslegungshilfe"],["rang-5","#22C55E","Rang 5 — vorbereitendes Material (Final Reports, Opinions)"],["rang-6","#0EA5A4","Rang 6 — datierte Aufsichtsveröffentlichung"],["rang-7","#1D4ED8","Rang 7 — laufende Aufsichtskommunikation (FAQ, Presse)"],["standard","#8B5CF6","Standards — außerhalb der Rangordnung"],["erwaegungsgrund","#8A8F98","Erwägungsgründe — Auslegungskontext"]],"extent":[678.6,468.5],"t0":"2006-01-01","impact":{"k":64,"d":"2022-12-13","dur":1.25,"reach":361.0},"nodes":[{"t":"Art. 1 – Gegenstand","d":"2022-12-14","g":"rang-1","s":2077,"p":0,"r":2.5,"x":60.9,"y":-2.7,"c":64},{"t":"Art. 10 – Erkennung","d":"2022-12-14","g":"rang-1","s":1183,"p":0,"r":2.5,"x":54.0,"y":0.8,"c":64},{"t":"Art. 11 – Reaktion und Wiederherstellung","d":"2022-12-14","g":"rang-1","s":5568,"p":0,"r":2.5,"x":58.5,"y":-9.5,"c":64},{"t":"Art. 12 – Richtlinie und Verfahren zum Backup sowie Verfahren und Methoden zur Wiedergewinnung und Wiederherstellung","d":"2022-12-14","g":"rang-1","s":4311,"p":0,"r":2.5,"x":62.7,"y":3.6,"c":64},{"t":"Art. 13 – Lernprozesse und Weiterentwicklung","d":"2022-12-14","g":"rang-1","s":3928,"p":0,"r":2.5,"x":48.9,"y":-4.3,"c":64},{"t":"Art. 14 – Kommunikation","d":"2022-12-14","g":"rang-1","s":1016,"p":0,"r":2.5,"x":66.3,"y":-8.1,"c":64},{"t":"Art. 15 – Weitere Harmonisierung von Tools, Methoden, Prozessen und Richtlinien für IKT-Risikomanagement","d":"2022-12-14","g":"rang-1","s":3346,"p":0,"r":2.5,"x":55.0,"y":7.8,"c":64},{"t":"Art. 16 – Vereinfachter IKT-Risikomanagementrahmen","d":"2022-12-14","g":"rang-1","s":4953,"p":0,"r":2.5,"x":52.5,"y":-13.1,"c":64},{"t":"Art. 17 – Prozess für die Behandlung IKT-bezogener Vorfälle","d":"2022-12-14","g":"rang-1","s":2133,"p":0,"r":2.5,"x":69.6,"y":1.5,"c":64},{"t":"Art. 18 – Klassifizierung von IKT-bezogenen Vorfällen und Cyberbedrohungen","d":"2022-12-14","g":"rang-1","s":3696,"p":0,"r":2.5,"x":45.7,"y":2.3,"c":64},{"t":"Art. 19 – Meldung schwerwiegender IKT-bezogener Vorfälle und freiwillige Meldung erheblicher Cyberbedrohungen","d":"2022-12-14","g":"rang-1","s":7901,"p":0,"r":2.5,"x":63.7,"y":-15.3,"c":64},{"t":"Art. 2 – Geltungsbereich","d":"2022-12-14","g":"rang-1","s":2795,"p":0,"r":2.5,"x":62.2,"y":11.1,"c":64},{"t":"Art. 20 – Harmonisierung von Inhalt und Vorlagen von Meldungen","d":"2022-12-14","g":"rang-1","s":2563,"p":0,"r":2.5,"x":44.8,"y":-10.3,"c":64},{"t":"Art. 21 – Zentralisierung der Berichterstattung über schwerwiegende IKT-bezogene Vorfälle","d":"2022-12-14","g":"rang-1","s":1672,"p":0,"r":2.5,"x":73.2,"y":-6.1,"c":64},{"t":"Art. 22 – Rückmeldungen von Aufsichtsbehörden","d":"2022-12-14","g":"rang-1","s":1672,"p":0,"r":2.5,"x":48.5,"y":10.6,"c":64},{"t":"Art. 23 – Zahlungsbezogene Betriebs- oder Sicherheitsvorfälle, die Kreditinstitute, Zahlungsinstitute, Kontoinformationsdienstleister und E-Geld-Institute betreffen","d":"2022-12-14","g":"rang-1","s":408,"p":0,"r":2.5,"x":55.7,"y":-19.4,"c":64},{"t":"Art. 24 – Allgemeine Anforderungen für das Testen der digitalen operationalen Resilienz","d":"2022-12-14","g":"rang-1","s":2449,"p":0,"r":2.5,"x":71.1,"y":8.4,"c":64},{"t":"Art. 25 – Testen von IKT-Tools und -Systemen","d":"2022-12-14","g":"rang-1","s":1514,"p":0,"r":2.5,"x":40.0,"y":-2.0,"c":64},{"t":"Art. 26 – Erweiterte Tests von IKT-Tools, -Systemen und -Prozessen auf Basis von TLPT","d":"2022-12-14","g":"rang-1","s":8163,"p":0,"r":2.5,"x":70.9,"y":-15.7,"c":64},{"t":"Art. 27 – Anforderungen an Tester bezüglich der Durchführung von TLPT","d":"2022-12-14","g":"rang-1","s":2028,"p":0,"r":2.5,"x":57.0,"y":16.1,"c":64},{"t":"Art. 28 – Allgemeine Prinzipien","d":"2022-12-14","g":"rang-1","s":10850,"p":0,"r":2.5,"x":45.5,"y":-17.6,"c":64},{"t":"Art. 29 – Vorläufige Bewertung des IKT-Konzentrationsrisikos auf Unternehmensebene","d":"2022-12-14","g":"rang-1","s":2913,"p":0,"r":2.5,"x":77.5,"y":-0.1,"c":64},{"t":"Art. 3 – Begriffsbestimmungen","d":"2022-12-14","g":"rang-1","s":16600,"p":0,"r":2.5,"x":41.2,"y":8.8,"c":64},{"t":"Art. 30 – Wesentliche Vertragsbestimmungen","d":"2022-12-14","g":"rang-1","s":7874,"p":0,"r":2.5,"x":62.4,"y":-22.9,"c":64},{"t":"Art. 31 – Einstufung kritischer IKT-Drittdienstleister","d":"2022-12-14","g":"rang-1","s":7761,"p":0,"r":2.5,"x":68.4,"y":15.6,"c":64},{"t":"Art. 32 – Struktur des Überwachungsrahmens","d":"2022-12-14","g":"rang-1","s":4725,"p":0,"r":2.5,"x":37.3,"y":-9.3,"c":64},{"t":"Art. 33 – Aufgaben der federführenden Überwachungsbehörde","d":"2022-12-14","g":"rang-1","s":4119,"p":0,"r":2.5,"x":77.8,"y":-12.0,"c":64},{"t":"Art. 34 – Operative Zusammenarbeit zwischen den federführenden Überwachungsbehörden","d":"2022-12-14","g":"rang-1","s":1322,"p":0,"r":2.5,"x":49.2,"y":17.9,"c":64},{"t":"Art. 35 – Befugnisse der federführenden Überwachungsbehörde","d":"2022-12-14","g":"rang-1","s":8478,"p":0,"r":2.5,"x":50.1,"y":-24.2,"c":64},{"t":"Art. 36 – Ausübung der Befugnisse der federführenden Überwachungsbehörde außerhalb der Union","d":"2022-12-14","g":"rang-1","s":5197,"p":0,"r":2.5,"x":78.4,"y":8.0,"c":64},{"t":"Art. 37 – Auskunftsersuchen","d":"2022-12-14","g":"rang-1","s":2937,"p":0,"r":2.5,"x":35.1,"y":3.3,"c":64},{"t":"Art. 38 – Allgemeine Untersuchungen","d":"2022-12-14","g":"rang-1","s":2760,"p":0,"r":2.5,"x":70.8,"y":-22.9,"c":64},{"t":"Art. 39 – Inspektionen","d":"2022-12-14","g":"rang-1","s":3298,"p":0,"r":2.5,"x":62.0,"y":21.2,"c":64},{"t":"Art. 4 – Grundsatz der Verhältnismäßigkeit","d":"2022-12-14","g":"rang-1","s":1065,"p":0,"r":2.5,"x":38.3,"y":-17.9,"c":64},{"t":"Art. 40 – Laufende Überwachung","d":"2022-12-14","g":"rang-1","s":1956,"p":0,"r":2.5,"x":82.9,"y":-4.8,"c":64},{"t":"Art. 41 – Harmonisierung der Voraussetzungen für die Durchführung der Überwachungstätigkeiten","d":"2022-12-14","g":"rang-1","s":1595,"p":0,"r":2.5,"x":40.6,"y":15.9,"c":64},{"t":"Art. 42 – Folgemaßnahmen zuständiger Behörden","d":"2022-12-14","g":"rang-1","s":7233,"p":0,"r":2.5,"x":58.0,"y":-28.5,"c":64},{"t":"Art. 43 – Überwachungsgebühren","d":"2022-12-14","g":"rang-1","s":1200,"p":0,"r":2.5,"x":75.4,"y":16.6,"c":64},{"t":"Art. 44 – Internationale Zusammenarbeit","d":"2022-12-14","g":"rang-1","s":1121,"p":0,"r":2.5,"x":31.5,"y":-5.2,"c":64},{"t":"Art. 45 – Vereinbarungen über den Austausch von Informationen und Erkenntnissen zu Cyberbedrohungen","d":"2022-12-14","g":"rang-1","s":1992,"p":0,"r":2.5,"x":79.2,"y":-19.0,"c":64},{"t":"Art. 46 – Zuständige Behörden","d":"2022-12-14","g":"rang-1","s":3713,"p":0,"r":2.5,"x":53.0,"y":24.0,"c":64},{"t":"Art. 47 – Zusammenarbeit mit den durch die Richtlinie (EU) 2022-2555 geschaffenen Strukturen und Behörden","d":"2022-12-14","g":"rang-1","s":2237,"p":0,"r":2.5,"x":43.2,"y":-26.0,"c":64},{"t":"Art. 48 – Zusammenarbeit der Behörden","d":"2022-12-14","g":"rang-1","s":612,"p":0,"r":2.5,"x":84.7,"y":4.6,"c":64},{"t":"Art. 49 – Sektorübergreifende Übungen, Kommunikation und Zusammenarbeit im Finanzbereich","d":"2022-12-14","g":"rang-1","s":1782,"p":0,"r":2.5,"x":32.8,"y":10.1,"c":64},{"t":"Art. 5 – Governance und Organisation","d":"2022-12-14","g":"rang-1","s":4266,"p":0,"r":2.5,"x":67.8,"y":-29.4,"c":64},{"t":"Art. 50 – Verwaltungsrechtliche Sanktionen und Abhilfemaßnahmen","d":"2022-12-14","g":"rang-1","s":3550,"p":0,"r":2.5,"x":68.7,"y":23.9,"c":64},{"t":"Art. 51 – Ausübung der Befugnis zur Auferlegung von verwaltungsrechtlichen Sanktionen und Abhilfemaßnahmen","d":"2022-12-14","g":"rang-1","s":1721,"p":0,"r":2.5,"x":31.6,"y":-15.2,"c":64},{"t":"Art. 52 – Strafrechtliche Sanktionen","d":"2022-12-14","g":"rang-1","s":969,"p":0,"r":2.5,"x":86.0,"y":-11.4,"c":64},{"t":"Art. 53 – Mitteilungspflichten","d":"2022-12-14","g":"rang-1","s":431,"p":0,"r":2.5,"x":42.8,"y":22.9,"c":64},{"t":"Art. 54 – Öffentliche Bekanntmachung verwaltungsrechtlicher Sanktionen","d":"2022-12-14","g":"rang-1","s":2809,"p":0,"r":2.5,"x":51.6,"y":-32.1,"c":64},{"t":"Art. 55 – Wahrung des Berufsgeheimnisses","d":"2022-12-14","g":"rang-1","s":1501,"p":0,"r":2.5,"x":82.6,"y":14.8,"c":64},{"t":"Art. 56 – Datenschutz","d":"2022-12-14","g":"rang-1","s":935,"p":0,"r":2.5,"x":27.5,"y":1.0,"c":64},{"t":"Art. 57 – Ausübung der Befugnisübertragung","d":"2022-12-14","g":"rang-1","s":2270,"p":0,"r":2.5,"x":77.9,"y":-26.3,"c":64},{"t":"Art. 58 – Überprüfungsklausel","d":"2022-12-14","g":"rang-1","s":4263,"p":0,"r":2.5,"x":59.0,"y":28.5,"c":64},{"t":"Art. 59 – Änderungen der Verordnung (EG) Nr. 1060-2009","d":"2022-12-14","g":"rang-1","s":1401,"p":0,"r":2.5,"x":35.7,"y":-25.2,"c":64},{"t":"Art. 6 – IKT-Risikomanagementrahmen","d":"2022-12-14","g":"rang-1","s":5888,"p":0,"r":2.5,"x":89.6,"y":-1.1,"c":64},{"t":"Art. 60 – Änderungen der Verordnung (EU) Nr. 648-2012","d":"2022-12-14","g":"rang-1","s":5613,"p":0,"r":2.5,"x":33.1,"y":17.7,"c":64},{"t":"Art. 61 – Änderungen der Verordnung (EU) Nr. 909-2014","d":"2022-12-14","g":"rang-1","s":3495,"p":0,"r":2.5,"x":62.3,"y":-34.8,"c":64},{"t":"Art. 62 – Änderungen der Verordnung (EU) Nr. 600-2014","d":"2022-12-14","g":"rang-1","s":1594,"p":0,"r":2.5,"x":76.4,"y":24.1,"c":64},{"t":"Art. 63 – Änderungen der Verordnung (EU) 2016-1011","d":"2022-12-14","g":"rang-1","s":805,"p":0,"r":2.5,"x":25.8,"y":-10.1,"c":64},{"t":"Art. 64 – Inkrafttreten und Anwendung","d":"2022-12-14","g":"rang-1","s":287,"p":0,"r":2.5,"x":86.8,"y":-19.1,"c":64},{"t":"Art. 7 – IKT-Systeme, -Protokolle und -Tools","d":"2022-12-14","g":"rang-1","s":929,"p":0,"r":2.5,"x":47.5,"y":29.1,"c":64},{"t":"Art. 8 – Identifizierung","d":"2022-12-14","g":"rang-1","s":2370,"p":0,"r":2.5,"x":43.9,"y":-33.5,"c":64},{"t":"Art. 9 – Schutz und Prävention","d":"2022-12-14","g":"rang-1","s":4308,"p":0,"r":2.5,"x":89.2,"y":10.5,"c":64},{"t":"DORA","d":"2022-12-13","g":"rang-1","s":336236,"p":0,"r":43.34,"x":57.9,"y":-2.7,"k":1,"cr":43.34,"lx":0.0,"ly":-52.9},{"t":"EG 105","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":25.5,"y":8.7,"c":64},{"t":"EG 17","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":74.1,"y":-33.3,"c":64},{"t":"EG 23","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":66.6,"y":31.0,"c":64},{"t":"EG 34","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":28.5,"y":-21.9,"c":64},{"t":"EG 41","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":92.7,"y":-8.6,"c":64},{"t":"EG 42","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":35.9,"y":25.3,"c":64},{"t":"EG 51","d":"2022-12-14","g":"erwaegungsgrund","s":0,"p":0,"r":2.5,"x":55.1,"y":-38.5,"c":64},{"t":"BaFin – Aufsichtsmitteilung – Hinweise zum vereinfachten IKT-Risikomanagement","d":"2025-08-21","g":"rang-6","s":78109,"p":0,"r":2.5,"x":83.7,"y":51.0},{"t":"BaFin – Aufsichtsmitteilung – Umsetzungshinweise zu DORA","d":"2024-07-08","g":"rang-6","s":116763,"p":0,"r":2.5,"x":-16.7,"y":25.7},{"t":"BaFin – Behandlung, Klassifizierung und Berichterstattung IKT-bezogener","d":"2026-07-12","g":"rang-6","s":6582,"p":0,"r":2.5,"x":-208.7,"y":-100.2},{"t":"BaFin – Dokumentationsanforderungen gemäß Artikel 16 DORA – Übersicht","d":"2025-08-21","g":"rang-6","s":684,"p":0,"r":2.5,"x":-23.0,"y":13.0},{"t":"BaFin – Dokumentationsanforderungen nach DORA – hierarchische Übersicht","d":"2024-12-17","g":"rang-6","s":881,"p":0,"r":2.5,"x":92.3,"y":-61.5},{"t":"BaFin – Fragen und Antworten zu TLPT","d":"2026-07-12","g":"rang-7","s":9459,"p":0,"r":2.5,"x":12.9,"y":-70.5},{"t":"BaFin – Fragen und Antworten zum IKT-Risikomanagement","d":"2026-07-12","g":"rang-7","s":5605,"p":0,"r":2.5,"x":93.5,"y":-44.4},{"t":"BaFin – Fragen und Antworten zum Informationsregister","d":"2026-07-20","g":"rang-7","s":11131,"p":0,"r":2.5,"x":-26.1,"y":-0.7},{"t":"BaFin – Fragen und Antworten zum Management des IKT-Drittparteienrisikos","d":"2026-07-20","g":"rang-7","s":12688,"p":0,"r":2.5,"x":119.5,"y":-42.7},{"t":"BaFin – Fragen und Antworten zum Überwachungsrahmen für kritische","d":"2026-07-20","g":"rang-7","s":20851,"p":0,"r":2.5,"x":89.4,"y":-75.2},{"t":"BaFin – Fragen und Antworten zur Behandlung, Klassifizierung","d":"2024-08-29","g":"rang-7","s":15326,"p":0,"r":2.5,"x":20.3,"y":37.2},{"t":"BaFin – Fragen und Antworten zur Vereinbarung über den Austausch","d":"2025-01-24","g":"rang-7","s":8221,"p":0,"r":2.5,"x":128.5,"y":-1.9},{"t":"BaFin – Hinweise zu den Dokumentationsanforderungen nach DORA","d":"2024-12-17","g":"rang-6","s":4668,"p":0,"r":2.5,"x":116.1,"y":30.7},{"t":"BaFin – Hinweise zur Übersicht der Dokumentationsanforderungen gemäß Artikel","d":"2025-08-21","g":"rang-6","s":3451,"p":0,"r":2.5,"x":122.4,"y":43.6},{"t":"BaFin – Liste der Mindestvertragsinhalte DORA (DE-EN, Excel-Arbeitshilfe)","d":"2026-07-12","g":"rang-6","s":67,"p":0,"r":2.5,"x":118.9,"y":-56.7},{"t":"BaFin – Rundschreiben 06-2024 (BA) – MaRisk (8. Novelle; abgelöst","d":"2005-12-20","g":"rang-3","s":147707,"p":0,"r":5.62,"x":-256.5,"y":-107.6,"px":31.9,"py":-40.9},{"t":"BaFin – Rundschreiben 06-2026 (BA) – Mindestanforderungen","d":"2026-06-30","g":"rang-3","s":190405,"p":0,"r":6.39,"x":-256.3,"y":-86.6},{"t":"BaFin – Rundschreiben 10-2017 (BA) – Bankaufsichtliche Anforderungen","d":"2017-11-06","g":"rang-3","s":72002,"p":0,"r":3.93,"x":-248.3,"y":-66.7,"px":41.2,"py":-11.7},{"t":"BaFin – Überwachungsrahmen für kritische IKT-Drittdienstleister (inkl","d":"2026-07-12","g":"rang-6","s":6252,"p":0,"r":2.5,"x":-210.0,"y":-54.0},{"t":"Bundesbank – DORA aus der Perspektive von bankgeschäftlichen Prüfungen","d":"2024-09-18","g":"rang-6","s":90,"p":0,"r":2.5,"x":134.9,"y":10.5},{"t":"EBA – Consultation Paper on draft revised Guidelines on internal governance","d":"2025-08-07","g":"rang-5","s":218831,"p":0,"r":6.85,"x":-291.4,"y":-77.8},{"t":"ESAs – DORA register of information reporting – Frequently Asked Questions","d":"2025-03-28","g":"rang-7","s":141079,"p":0,"r":2.5,"x":-12.2,"y":0.4},{"t":"ESAs – DORA – Oversight of critical ICT third-party service providers- Guide","d":"2025-07-15","g":"rang-6","s":81463,"p":0,"r":2.5,"x":27.8,"y":-65.4},{"t":"ESAs – Decision concerning the reporting by competent authorities","d":"2024-11-08","g":"rang-3","s":19699,"p":0,"r":2.5,"x":-45.8,"y":-42.0},{"t":"ESAs – ESAs 2025 report on major ICT-related incidents","d":"2026-06-03","g":"rang-6","s":46599,"p":0,"r":2.5,"x":92.3,"y":39.9},{"t":"ESAs – ESAs Opinion on the European Commission's rejection of the draft ITS","d":"2024-10-15","g":"rang-5","s":22498,"p":0,"r":2.5,"x":242.2,"y":-54.1},{"t":"ESAs – ESAs Opinion on the rejection of the RTS on subcontracting under DORA","d":"2025-03-07","g":"rang-5","s":4752,"p":0,"r":2.5,"x":114.0,"y":-110.9},{"t":"ESAs – ESAs Statement on DORA application (JC 2024 99)","d":"2024-12-04","g":"rang-6","s":4249,"p":0,"r":2.5,"x":139.1,"y":-11.1},{"t":"ESAs – Final report on Joint Guidelines on the estimation of aggregated","d":"2024-07-17","g":"rang-5","s":83385,"p":0,"r":4.23,"x":-193.9,"y":-94.5},{"t":"ESAs – Final report on Joint Guidelines on the oversight cooperation","d":"2024-07-17","g":"rang-5","s":74485,"p":0,"r":3.99,"x":-226.7,"y":-50.0},{"t":"ESAs – Final report on draft ITS on the standard templates for the register","d":"2024-01-17","g":"rang-5","s":256567,"p":0,"r":7.41,"x":259.5,"y":-19.9},{"t":"ESAs – Final report on draft RTS on ICT risk management framework","d":"2024-01-17","g":"rang-5","s":552216,"p":0,"r":8.79,"x":-124.6,"y":73.1},{"t":"ESAs – Final report on draft RTS on classification of major incidents","d":"2024-01-17","g":"rang-5","s":283549,"p":0,"r":7.79,"x":36.7,"y":-139.9},{"t":"ESAs – Final report on draft RTS on harmonisation of conditions enabling","d":"2024-07-17","g":"rang-5","s":142247,"p":0,"r":5.52,"x":283.9,"y":-19.2},{"t":"ESAs – Final report on draft RTS on subcontracting ICT services supporting","d":"2024-07-26","g":"rang-5","s":157887,"p":0,"r":5.81,"x":166.7,"y":-88.1},{"t":"ESAs – Final report on draft RTS on the joint examination teams (JC 2024 54)","d":"2024-07-17","g":"rang-5","s":49497,"p":0,"r":3.26,"x":253.7,"y":39.0},{"t":"ESAs – Final report on draft RTS specifying elements related to threat-led","d":"2024-07-17","g":"rang-5","s":474367,"p":0,"r":8.78,"x":-10.9,"y":121.7},{"t":"ESAs – Final report on draft RTS to specify the policy on ICT services","d":"2024-01-17","g":"rang-5","s":151335,"p":0,"r":5.69,"x":-247.4,"y":-16.9},{"t":"ESAs – Final report on the draft RTS and ITS on incident reporting (JC 2024","d":"2024-07-17","g":"rang-5","s":365380,"p":0,"r":8.76,"x":-99.8,"y":-103.3},{"t":"ESAs – Joint ESAs Technical Advice on criteria for critical ICT third-party","d":"2023-09-29","g":"rang-5","s":233158,"p":0,"r":7.07,"x":152.2,"y":103.4},{"t":"ESAs – Key findings from the 2024 ESAs' Dry Run exercise on the register","d":"2024-12-17","g":"rang-6","s":65768,"p":0,"r":2.5,"x":123.8,"y":-15.1},{"t":"EZB – EZB-Leitfaden zur Auslagerung von Cloud-Diensten an Cloud-Anbieter","d":"2025-07-16","g":"rang-6","s":68020,"p":0,"r":2.5,"x":113.0,"y":55.6},{"t":"EZB – TIBER-EU Guide – How to implement the TIBER-EU framework for the DORA","d":"2026-08-19","g":"rang-6","s":48228,"p":0,"r":2.5,"x":106.8,"y":-48.7},{"t":"DA-CTPP Art. 1 – Bewertungsansatz","d":"2024-02-22","g":"rang-2","s":1638,"p":0,"r":2.5,"x":180.0,"y":127.4,"c":122},{"t":"DA-CTPP Art. 2 – Systemische Auswirkungen von IKT-Drittdienstleistern","d":"2024-02-22","g":"rang-2","s":3462,"p":0,"r":2.5,"x":173.1,"y":130.9,"c":122},{"t":"DA-CTPP Art. 3 – Systemischer Charakter und Bedeutung der IKT-Dienstleistungen","d":"2024-02-22","g":"rang-2","s":3500,"p":0,"r":2.5,"x":177.5,"y":120.7,"c":122},{"t":"DA-CTPP Art. 4 – Kritikalität oder Bedeutung der Funktionen","d":"2024-02-22","g":"rang-2","s":534,"p":0,"r":2.5,"x":181.8,"y":133.7,"c":122},{"t":"DA-CTPP Art. 5 – Grad der Substituierbarkeit","d":"2024-02-22","g":"rang-2","s":3593,"p":0,"r":2.5,"x":168.0,"y":125.8,"c":122},{"t":"DA-CTPP Art. 6 – Informationsquellen für die Kritikalitätsbewertung","d":"2024-02-22","g":"rang-2","s":726,"p":0,"r":2.5,"x":185.4,"y":122.0,"c":122},{"t":"DA-CTPP Art. 7 – Inkrafttreten und Geltungsbeginn","d":"2024-02-22","g":"rang-2","s":587,"p":0,"r":2.5,"x":174.1,"y":137.9,"c":122},{"t":"DA-CTPP","d":"2024-02-21","g":"rang-2","s":21602,"p":0,"r":18.38,"x":176.9,"y":127.4,"k":1,"cr":18.38,"lx":0.0,"ly":-28.0},{"t":"DA-FEES Art. 1 – Schätzung der Ausgaben der federführenden Überwachungsbehörden","d":"2024-02-22","g":"rang-2","s":1239,"p":0,"r":2.5,"x":222.1,"y":81.5,"c":130},{"t":"DA-FEES Art. 2 – Bei der Berechnung der Überwachungsgebühren zugrunde zu legender","d":"2024-02-22","g":"rang-2","s":3085,"p":0,"r":2.5,"x":215.2,"y":85.0,"c":130},{"t":"DA-FEES Art. 3 – Berechnung der Überwachungsgebühren","d":"2024-02-22","g":"rang-2","s":672,"p":0,"r":2.5,"x":219.7,"y":74.7,"c":130},{"t":"DA-FEES Art. 4 – Überwachungsgebühren im Jahr der Einstufung als kritisch und Anträge","d":"2024-02-22","g":"rang-2","s":1733,"p":0,"r":2.5,"x":223.9,"y":87.8,"c":130},{"t":"DA-FEES Art. 5 – Entrichtung der Überwachungsgebühren","d":"2024-02-22","g":"rang-2","s":1006,"p":0,"r":2.5,"x":210.2,"y":79.9,"c":130},{"t":"DA-FEES Art. 6 – Kommunikation zwischen der federführenden Überwachungsbehörde","d":"2024-02-22","g":"rang-2","s":289,"p":0,"r":2.5,"x":227.5,"y":76.1,"c":130},{"t":"DA-FEES Art. 7 – Inkrafttreten und Geltungsbeginn","d":"2024-02-22","g":"rang-2","s":442,"p":0,"r":2.5,"x":216.2,"y":92.0,"c":130},{"t":"DA-FEES","d":"2024-02-21","g":"rang-2","s":15251,"p":0,"r":18.38,"x":219.1,"y":81.5,"k":1,"cr":18.38,"lx":0.0,"ly":-28.0},{"t":"ITS-INCREP Anhang I – VORLAGEN FÜR DIE MELDUNG SCHWERWIEGENDER SICHERHEITSVORFÄLLE","d":"2024-10-23","g":"rang-2","s":5406,"p":0,"r":2.5,"x":-38.2,"y":-163.1,"c":144},{"t":"ITS-INCREP Anhang II – DATENGLOSSAR UND ANLEITUNG FÜR DIE MELDUNG SCHWERWIEGENDER","d":"2024-10-23","g":"rang-2","s":260670,"p":0,"r":2.5,"x":-45.1,"y":-159.5,"c":144},{"t":"ITS-INCREP Anhang III – VORLAGEN FÜR DIE MELDUNG ERHEBLICHER CYBERBEDROHUNGEN","d":"2024-10-23","g":"rang-2","s":1151,"p":0,"r":2.5,"x":-40.7,"y":-169.8,"c":144},{"t":"ITS-INCREP Anhang IV – DATENGLOSSAR UND ANLEITUNG FÜR DIE MELDUNG ERHEBLICHER","d":"2024-10-23","g":"rang-2","s":24366,"p":0,"r":2.5,"x":-36.4,"y":-156.7,"c":144},{"t":"ITS-INCREP Art. 1 – Vorlage für die Meldung schwerwiegender IKT-bezogener Vorfälle","d":"2024-10-23","g":"rang-2","s":2714,"p":0,"r":2.5,"x":-50.2,"y":-164.7,"c":144},{"t":"ITS-INCREP Art. 2 – Gleichzeitige Übermittlung der Erst-, Zwischen- und Abschlussmeldung","d":"2024-10-23","g":"rang-2","s":433,"p":0,"r":2.5,"x":-32.8,"y":-168.4,"c":144},{"t":"ITS-INCREP Art. 3 – Wiederholte IKT-bezogene Vorfälle","d":"2024-10-23","g":"rang-2","s":371,"p":0,"r":2.5,"x":-44.1,"y":-152.6,"c":144},{"t":"ITS-INCREP Art. 4 – Nutzung sicherer elektronischer Kanäle","d":"2024-10-23","g":"rang-2","s":770,"p":0,"r":2.5,"x":-46.7,"y":-173.4,"c":144},{"t":"ITS-INCREP Art. 5 – Rückstufung schwerwiegender IKT-bezogener Vorfälle","d":"2024-10-23","g":"rang-2","s":644,"p":0,"r":2.5,"x":-29.6,"y":-158.8,"c":144},{"t":"ITS-INCREP Art. 6 – Unterrichtung über die Auslagerung der Berichtspflichten","d":"2024-10-23","g":"rang-2","s":771,"p":0,"r":2.5,"x":-53.4,"y":-158.1,"c":144},{"t":"ITS-INCREP Art. 7 – Aggregierte Meldung","d":"2024-10-23","g":"rang-2","s":2546,"p":0,"r":2.5,"x":-35.4,"y":-175.6,"c":144},{"t":"ITS-INCREP Art. 8 – Meldung erheblicher Cyberbedrohungen","d":"2024-10-23","g":"rang-2","s":475,"p":0,"r":2.5,"x":-36.9,"y":-149.3,"c":144},{"t":"ITS-INCREP Art. 9 – Inkrafttreten","d":"2024-10-23","g":"rang-2","s":335,"p":0,"r":2.5,"x":-54.3,"y":-170.6,"c":144},{"t":"ITS-INCREP","d":"2024-10-22","g":"rang-2","s":310224,"p":0,"r":22.59,"x":-41.3,"y":-163.1,"k":1,"cr":22.59,"lx":0.0,"ly":-32.2},{"t":"ITS-INFOREG Anhang I – Anleitung zum Ausfüllen des Informationsregisters","d":"2024-11-29","g":"rang-2","s":71017,"p":0,"r":2.5,"x":278.1,"y":-54.3,"c":156},{"t":"ITS-INFOREG Anhang II – Liste der Tätigkeiten nach Art des Unternehmens","d":"2024-11-29","g":"rang-2","s":8766,"p":0,"r":2.5,"x":271.2,"y":-50.8,"c":156},{"t":"ITS-INFOREG Anhang III – Art der IKT-Dienstleistungen","d":"2024-11-29","g":"rang-2","s":3293,"p":0,"r":2.5,"x":275.7,"y":-61.0,"c":156},{"t":"ITS-INFOREG Anhang IV – Anleitung zur Meldung des „Gesamtwerts der Aktiva“","d":"2024-11-29","g":"rang-2","s":5087,"p":0,"r":2.5,"x":279.9,"y":-48.0,"c":156},{"t":"ITS-INFOREG Art. 1 – Begriffsbestimmungen","d":"2024-11-29","g":"rang-2","s":967,"p":0,"r":2.5,"x":266.2,"y":-55.9,"c":156},{"t":"ITS-INFOREG Art. 2 – Erstellung einer Rangfolge von IKT-Drittdienstleistern","d":"2024-11-29","g":"rang-2","s":559,"p":0,"r":2.5,"x":283.5,"y":-59.7,"c":156},{"t":"ITS-INFOREG Art. 3 – Allgemeine Anforderungen an die Vorlagen des Informationsregisters","d":"2024-11-29","g":"rang-2","s":2891,"p":0,"r":2.5,"x":272.2,"y":-43.8,"c":156},{"t":"ITS-INFOREG Art. 4 – Anforderung an das Datenformat","d":"2024-11-29","g":"rang-2","s":708,"p":0,"r":2.5,"x":269.7,"y":-64.7,"c":156},{"t":"ITS-INFOREG Art. 5 – Inhalt des Informationsregisters","d":"2024-11-29","g":"rang-2","s":3096,"p":0,"r":2.5,"x":286.8,"y":-50.0,"c":156},{"t":"ITS-INFOREG Art. 6 – Anwendungsbereich des Informationsregisters auf teilkonsolidierter","d":"2024-11-29","g":"rang-2","s":536,"p":0,"r":2.5,"x":262.9,"y":-49.3,"c":156},{"t":"ITS-INFOREG Art. 7 – Inkrafttreten","d":"2024-11-29","g":"rang-2","s":245,"p":0,"r":2.5,"x":280.9,"y":-66.8,"c":156},{"t":"ITS-INFOREG","d":"2024-11-28","g":"rang-2","s":114417,"p":0,"r":21.33,"x":275.1,"y":-54.3,"k":1,"cr":21.33,"lx":-60.6,"ly":-21.7},{"t":"RTS-CLASS Art. 1 – Kunden, finanzielle Gegenparteien und Transaktionen","d":"2024-03-13","g":"rang-2","s":2068,"p":0,"r":2.5,"x":74.8,"y":-157.7,"c":170},{"t":"RTS-CLASS Art. 10 – Hohe Wesentlichkeitsschwellen für die Bestimmung erheblicher","d":"2024-03-13","g":"rang-2","s":1981,"p":0,"r":2.5,"x":68.0,"y":-154.1,"c":170},{"t":"RTS-CLASS Art. 11 – Relevanz schwerwiegender Vorfälle für die zuständigen Behörden","d":"2024-03-13","g":"rang-2","s":789,"p":0,"r":2.5,"x":72.4,"y":-164.4,"c":170},{"t":"RTS-CLASS Art. 12 – An andere zuständige Behörden zu übermittelnde Einzelheiten zu","d":"2024-03-13","g":"rang-2","s":708,"p":0,"r":2.5,"x":76.7,"y":-151.3,"c":170},{"t":"RTS-CLASS Art. 13 – Inkrafttreten","d":"2024-03-13","g":"rang-2","s":421,"p":0,"r":2.5,"x":62.9,"y":-159.2,"c":170},{"t":"RTS-CLASS Art. 2 – Reputationsschaden","d":"2024-03-13","g":"rang-2","s":1102,"p":0,"r":2.5,"x":80.3,"y":-163.0,"c":170},{"t":"RTS-CLASS Art. 3 – Dauer und Ausfallzeiten","d":"2024-03-13","g":"rang-2","s":1727,"p":0,"r":2.5,"x":69.0,"y":-147.1,"c":170},{"t":"RTS-CLASS Art. 4 – Geografische Ausbreitung","d":"2024-03-13","g":"rang-2","s":808,"p":0,"r":2.5,"x":66.4,"y":-168.0,"c":170},{"t":"RTS-CLASS Art. 5 – Verluste von Daten","d":"2024-03-13","g":"rang-2","s":951,"p":0,"r":2.5,"x":83.5,"y":-153.4,"c":170},{"t":"RTS-CLASS Art. 6 – Kritikalität der betroffenen Dienste","d":"2024-03-13","g":"rang-2","s":769,"p":0,"r":2.5,"x":59.6,"y":-152.6,"c":170},{"t":"RTS-CLASS Art. 7 – Wirtschaftliche Auswirkungen","d":"2024-03-13","g":"rang-2","s":2216,"p":0,"r":2.5,"x":77.7,"y":-170.2,"c":170},{"t":"RTS-CLASS Art. 8 – Schwerwiegende Vorfälle","d":"2024-03-13","g":"rang-2","s":1236,"p":0,"r":2.5,"x":76.1,"y":-143.8,"c":170},{"t":"RTS-CLASS Art. 9 – Wesentlichkeitsschwellen für die Bestimmung schwerwiegender Vorfälle","d":"2024-03-13","g":"rang-2","s":3149,"p":0,"r":2.5,"x":58.8,"y":-165.2,"c":170},{"t":"RTS-CLASS","d":"2024-03-12","g":"rang-2","s":36159,"p":0,"r":22.59,"x":71.8,"y":-157.7,"k":1,"cr":22.59,"lx":0.0,"ly":-32.2},{"t":"RTS-INCREP Art. 1 – Allgemeine Informationen, die in Erstmeldungen sowie in Zwischen","d":"2024-10-23","g":"rang-2","s":1185,"p":0,"r":2.5,"x":-125.9,"y":-124.6,"c":178},{"t":"RTS-INCREP Art. 2 – Spezifische Informationen, die in Erstmeldungen enthalten sein müssen","d":"2024-10-23","g":"rang-2","s":1706,"p":0,"r":2.5,"x":-132.8,"y":-121.1,"c":178},{"t":"RTS-INCREP Art. 3 – Spezifische Informationen, die in Zwischenmeldungen enthalten sein","d":"2024-10-23","g":"rang-2","s":1364,"p":0,"r":2.5,"x":-128.4,"y":-131.3,"c":178},{"t":"RTS-INCREP Art. 4 – Spezifische Informationen, die in Abschlussmeldungen enthalten sein","d":"2024-10-23","g":"rang-2","s":817,"p":0,"r":2.5,"x":-124.1,"y":-118.3,"c":178},{"t":"RTS-INCREP Art. 5 – Fristen für die Erst-, Zwischen- und Abschlussmeldung","d":"2024-10-23","g":"rang-2","s":3050,"p":0,"r":2.5,"x":-137.9,"y":-126.2,"c":178},{"t":"RTS-INCREP Art. 6 – Inhalt der freiwilligen Meldung erheblicher Cyberbedrohungen","d":"2024-10-23","g":"rang-2","s":1355,"p":0,"r":2.5,"x":-120.5,"y":-130.0,"c":178},{"t":"RTS-INCREP Art. 7 – Inkrafttreten","d":"2024-10-23","g":"rang-2","s":422,"p":0,"r":2.5,"x":-131.8,"y":-114.1,"c":178},{"t":"RTS-INCREP","d":"2024-10-22","g":"rang-2","s":18795,"p":0,"r":18.38,"x":-129.0,"y":-124.6,"k":1,"cr":18.38,"lx":0.0,"ly":-28.0},{"t":"RTS-JET Art. 1 – Aufgaben der Mitglieder des gemeinsamen Untersuchungsteams","d":"2024-12-16","g":"rang-2","s":3147,"p":0,"r":2.5,"x":285.7,"y":45.8,"c":185},{"t":"RTS-JET Art. 2 – Einrichtung des gemeinsamen Untersuchungsteams","d":"2024-12-16","g":"rang-2","s":2914,"p":0,"r":2.5,"x":278.9,"y":49.3,"c":185},{"t":"RTS-JET Art. 3 – Mitglieder des gemeinsamen Untersuchungsteams","d":"2024-12-16","g":"rang-2","s":3003,"p":0,"r":2.5,"x":283.3,"y":39.1,"c":185},{"t":"RTS-JET Art. 4 – Änderung der Mitgliedschaft im gemeinsamen Untersuchungsteam","d":"2024-12-16","g":"rang-2","s":626,"p":0,"r":2.5,"x":287.6,"y":52.1,"c":185},{"t":"RTS-JET Art. 5 – Arbeitsvereinbarungen der Mitglieder des gemeinsamen","d":"2024-12-16","g":"rang-2","s":1906,"p":0,"r":2.5,"x":273.8,"y":44.2,"c":185},{"t":"RTS-JET Art. 6 – Inkrafttreten","d":"2024-12-16","g":"rang-2","s":423,"p":0,"r":2.5,"x":291.2,"y":40.4,"c":185},{"t":"RTS-JET","d":"2024-12-15","g":"rang-2","s":25035,"p":0,"r":17.51,"x":282.7,"y":45.8,"k":1,"cr":17.51,"lx":0.0,"ly":27.1},{"t":"RTS-OVERSIGHT Anhang 1 – VORLAGE FÜR DIE ÜBERMITTLUNG VON INFORMATIONEN ÜBER VEREINBARUNGEN","d":"2024-10-24","g":"rang-2","s":14989,"p":0,"r":2.5,"x":317.1,"y":-4.2,"c":194},{"t":"RTS-OVERSIGHT Art. 1 – Informationen, die IKT-Drittdrittdienstleister im Antrag","d":"2024-10-24","g":"rang-2","s":4306,"p":0,"r":2.5,"x":310.3,"y":-0.7,"c":194},{"t":"RTS-OVERSIGHT Art. 2 – Inhalt, Struktur und Format der Informationen, die kritische","d":"2024-10-24","g":"rang-2","s":9361,"p":0,"r":2.5,"x":314.7,"y":-11.0,"c":194},{"t":"RTS-OVERSIGHT Art. 3 – Informationen, die kritische IKT-Drittdienstleister nach Abgabe","d":"2024-10-24","g":"rang-2","s":1560,"p":0,"r":2.5,"x":319.0,"y":2.1,"c":194},{"t":"RTS-OVERSIGHT Art. 4 – Struktur und Format der Informationen, die kritische","d":"2024-10-24","g":"rang-2","s":928,"p":0,"r":2.5,"x":305.2,"y":-5.8,"c":194},{"t":"RTS-OVERSIGHT Art. 5 – Vorlage für die Bereitstellung von Informationen über Vereinbarungen","d":"2024-10-24","g":"rang-2","s":351,"p":0,"r":2.5,"x":322.6,"y":-9.6,"c":194},{"t":"RTS-OVERSIGHT Art. 6 – Bewertung der in den Empfehlungen der federführenden","d":"2024-10-24","g":"rang-2","s":2280,"p":0,"r":2.5,"x":311.3,"y":6.3,"c":194},{"t":"RTS-OVERSIGHT Art. 7 – Inkrafttreten","d":"2024-10-24","g":"rang-2","s":335,"p":0,"r":2.5,"x":308.7,"y":-14.6,"c":194},{"t":"RTS-OVERSIGHT","d":"2024-10-23","g":"rang-2","s":45517,"p":0,"r":19.19,"x":314.1,"y":-4.2,"k":1,"cr":19.19,"lx":-65.1,"ly":-20.2},{"t":"RTS-RMF Art. 1 – Gesamtrisikoprofil und -komplexität","d":"2024-03-13","g":"rang-2","s":832,"p":0,"r":2.5,"x":-152.3,"y":116.5,"c":237},{"t":"RTS-RMF Art. 10 – Schwachstellen- und Patch-Management","d":"2024-03-13","g":"rang-2","s":4330,"p":0,"r":2.5,"x":-159.2,"y":120.0,"c":237},{"t":"RTS-RMF Art. 11 – Daten- und Systemsicherheit","d":"2024-03-13","g":"rang-2","s":4742,"p":0,"r":2.5,"x":-154.8,"y":109.7,"c":237},{"t":"RTS-RMF Art. 12 – Datenaufzeichnung","d":"2024-03-13","g":"rang-2","s":1990,"p":0,"r":2.5,"x":-150.5,"y":122.8,"c":237},{"t":"RTS-RMF Art. 13 – Management der Netzwerksicherheit","d":"2024-03-13","g":"rang-2","s":3871,"p":0,"r":2.5,"x":-164.3,"y":114.9,"c":237},{"t":"RTS-RMF Art. 14 – Sicherung von Informationen bei der Übermittlung","d":"2024-03-13","g":"rang-2","s":1334,"p":0,"r":2.5,"x":-146.9,"y":111.1,"c":237},{"t":"RTS-RMF Art. 15 – IKT-Projektmanagement","d":"2024-03-13","g":"rang-2","s":2010,"p":0,"r":2.5,"x":-158.2,"y":127.0,"c":237},{"t":"RTS-RMF Art. 16 – Beschaffung, Entwicklung und Wartung von IKT-Systemen","d":"2024-03-13","g":"rang-2","s":4739,"p":0,"r":2.5,"x":-160.7,"y":106.1,"c":237},{"t":"RTS-RMF Art. 17 – IKT-Änderungsmanagement","d":"2024-03-13","g":"rang-2","s":2806,"p":0,"r":2.5,"x":-143.7,"y":120.7,"c":237},{"t":"RTS-RMF Art. 18 – Physische Sicherheit und Sicherheit vor Umweltereignissen","d":"2024-03-13","g":"rang-2","s":2480,"p":0,"r":2.5,"x":-167.5,"y":121.5,"c":237},{"t":"RTS-RMF Art. 19 – Richtlinien für Personalpolitik","d":"2024-03-13","g":"rang-2","s":1420,"p":0,"r":2.5,"x":-149.5,"y":103.9,"c":237},{"t":"RTS-RMF Art. 2 – Allgemeine Elemente der Richtlinien, Verfahren, Protokolle und Tools","d":"2024-03-13","g":"rang-2","s":2989,"p":0,"r":2.5,"x":-151.0,"y":130.3,"c":237},{"t":"RTS-RMF Art. 20 – Identitätsmanagement","d":"2024-03-13","g":"rang-2","s":1606,"p":0,"r":2.5,"x":-168.4,"y":108.9,"c":237},{"t":"RTS-RMF Art. 21 – Zugangskontrolle","d":"2024-03-13","g":"rang-2","s":4639,"p":0,"r":2.5,"x":-140.0,"y":113.1,"c":237},{"t":"RTS-RMF Art. 22 – Richtlinien für die Behandlung IKT-bezogener Vorfälle","d":"2024-03-13","g":"rang-2","s":2519,"p":0,"r":2.5,"x":-164.7,"y":129.8,"c":237},{"t":"RTS-RMF Art. 23 – Erkennung anormaler Aktivitäten und Kriterien für die Erkennung","d":"2024-03-13","g":"rang-2","s":3721,"p":0,"r":2.5,"x":-157.5,"y":99.8,"c":237},{"t":"RTS-RMF Art. 24 – Komponenten der IKT-Geschäftsfortführungsleitlinie","d":"2024-03-13","g":"rang-2","s":5581,"p":0,"r":2.5,"x":-142.1,"y":127.6,"c":237},{"t":"RTS-RMF Art. 25 – Test des IKT-Geschäftsfortführungsplans","d":"2024-03-13","g":"rang-2","s":3325,"p":0,"r":2.5,"x":-173.2,"y":117.2,"c":237},{"t":"RTS-RMF Art. 26 – IKT-Reaktions- und Wiederherstellungspläne","d":"2024-03-13","g":"rang-2","s":3850,"p":0,"r":2.5,"x":-142.3,"y":103.5,"c":237},{"t":"RTS-RMF Art. 27 – Format und Inhalt des Berichts über die Überprüfung","d":"2024-03-13","g":"rang-2","s":5984,"p":0,"r":2.5,"x":-156.2,"y":135.3,"c":237},{"t":"RTS-RMF Art. 28 – Governance und Organisation","d":"2024-03-13","g":"rang-2","s":4150,"p":0,"r":2.5,"x":-167.7,"y":101.6,"c":237},{"t":"RTS-RMF Art. 29 – Informationssicherheitsleitlinien und -maßnahmen","d":"2024-03-13","g":"rang-2","s":946,"p":0,"r":2.5,"x":-135.7,"y":119.1,"c":237},{"t":"RTS-RMF Art. 3 – IKT-Risikomanagement","d":"2024-03-13","g":"rang-2","s":3144,"p":0,"r":2.5,"x":-172.0,"y":128.0,"c":237},{"t":"RTS-RMF Art. 30 – Klassifizierung von Informations- und IKT-Assets","d":"2024-03-13","g":"rang-2","s":687,"p":0,"r":2.5,"x":-150.8,"y":96.3,"c":237},{"t":"RTS-RMF Art. 31 – IKT-Risikomanagement","d":"2024-03-13","g":"rang-2","s":1652,"p":0,"r":2.5,"x":-144.9,"y":134.8,"c":237},{"t":"RTS-RMF Art. 32 – Physische Sicherheit und Sicherheit vor Umweltereignissen","d":"2024-03-13","g":"rang-2","s":1016,"p":0,"r":2.5,"x":-175.9,"y":109.9,"c":237},{"t":"RTS-RMF Art. 33 – Zugangskontrolle","d":"2024-03-13","g":"rang-2","s":2101,"p":0,"r":2.5,"x":-135.4,"y":107.2,"c":237},{"t":"RTS-RMF Art. 34 – IKT-Betriebssicherheit","d":"2024-03-13","g":"rang-2","s":1916,"p":0,"r":2.5,"x":-164.0,"y":137.1,"c":237},{"t":"RTS-RMF Art. 35 – Daten-, System- und Netzwerksicherheit","d":"2024-03-13","g":"rang-2","s":1970,"p":0,"r":2.5,"x":-163.1,"y":95.0,"c":237},{"t":"RTS-RMF Art. 36 – IKT-Sicherheitstests","d":"2024-03-13","g":"rang-2","s":1014,"p":0,"r":2.5,"x":-134.8,"y":127.2,"c":237},{"t":"RTS-RMF Art. 37 – Beschaffung, Entwicklung und Wartung von IKT-Systemen","d":"2024-03-13","g":"rang-2","s":999,"p":0,"r":2.5,"x":-178.2,"y":122.5,"c":237},{"t":"RTS-RMF Art. 38 – IKT-Projekt- und -Änderungsmanagement","d":"2024-03-13","g":"rang-2","s":819,"p":0,"r":2.5,"x":-142.4,"y":96.3,"c":237},{"t":"RTS-RMF Art. 39 – Komponenten des IKT-Geschäftsfortführungsplans","d":"2024-03-13","g":"rang-2","s":2533,"p":0,"r":2.5,"x":-151.2,"y":140.4,"c":237},{"t":"RTS-RMF Art. 4 – Richtlinie für das Management von IKT-Assets","d":"2024-03-13","g":"rang-2","s":2130,"p":0,"r":2.5,"x":-174.9,"y":101.3,"c":237},{"t":"RTS-RMF Art. 40 – Testen der Geschäftsfortführungspläne","d":"2024-03-13","g":"rang-2","s":997,"p":0,"r":2.5,"x":-130.4,"y":114.4,"c":237},{"t":"RTS-RMF Art. 41 – Format und Inhalt des Berichts über die Überprüfung des vereinfachten","d":"2024-03-13","g":"rang-2","s":3010,"p":0,"r":2.5,"x":-172.6,"y":135.1,"c":237},{"t":"RTS-RMF Art. 42 – Inkrafttreten","d":"2024-03-13","g":"rang-2","s":246,"p":0,"r":2.5,"x":-155.2,"y":90.7,"c":237},{"t":"RTS-RMF Art. 5 – Verfahren für das Management von IKT-Assets","d":"2024-03-13","g":"rang-2","s":814,"p":0,"r":2.5,"x":-137.8,"y":135.8,"c":237},{"t":"RTS-RMF Art. 6 – Verschlüsselung und kryptografische Kontrollen","d":"2024-03-13","g":"rang-2","s":3097,"p":0,"r":2.5,"x":-181.7,"y":114.0,"c":237},{"t":"RTS-RMF Art. 7 – Management kryptografischer Schlüssel","d":"2024-03-13","g":"rang-2","s":1426,"p":0,"r":2.5,"x":-134.0,"y":100.2,"c":237},{"t":"RTS-RMF Art. 8 – Richtlinien und Verfahren für IKT-Vorgänge","d":"2024-03-13","g":"rang-2","s":3255,"p":0,"r":2.5,"x":-160.2,"y":143.2,"c":237},{"t":"RTS-RMF Art. 9 – Kapazitäts- und Leistungsmanagement","d":"2024-03-13","g":"rang-2","s":1030,"p":0,"r":2.5,"x":-170.0,"y":93.2,"c":237},{"t":"RTS-RMF","d":"2024-03-12","g":"rang-2","s":139915,"p":0,"r":35.0,"x":-155.4,"y":116.5,"k":1,"cr":35.0,"lx":0.0,"ly":-44.6},{"t":"RTS-SUBCON Art. 1 – Gesamtrisikoprofil und Komplexität","d":"2025-03-24","g":"rang-2","s":3610,"p":0,"r":2.5,"x":146.9,"y":-112.1,"c":245},{"t":"RTS-SUBCON Art. 2 – Anwendung auf eine Gruppe","d":"2025-03-24","g":"rang-2","s":778,"p":0,"r":2.5,"x":140.0,"y":-108.6,"c":245},{"t":"RTS-SUBCON Art. 3 – Sorgfaltspflicht und Risikobewertung in Bezug auf den Einsatz","d":"2025-03-24","g":"rang-2","s":5496,"p":0,"r":2.5,"x":144.5,"y":-118.9,"c":245},{"t":"RTS-SUBCON Art. 4 – Bedingungen, unter denen IKT-Dienstleistungen, die kritische","d":"2025-03-24","g":"rang-2","s":4015,"p":0,"r":2.5,"x":148.7,"y":-105.8,"c":245},{"t":"RTS-SUBCON Art. 5 – Wesentliche Änderungen an Unterauftragsvereinbarungen","d":"2025-03-24","g":"rang-2","s":1452,"p":0,"r":2.5,"x":134.9,"y":-113.7,"c":245},{"t":"RTS-SUBCON Art. 6 – Kündigung des Vertrags zwischen dem Finanzunternehmen","d":"2025-03-24","g":"rang-2","s":1166,"p":0,"r":2.5,"x":152.3,"y":-117.5,"c":245},{"t":"RTS-SUBCON Art. 7 – Inkrafttreten","d":"2025-03-24","g":"rang-2","s":419,"p":0,"r":2.5,"x":141.0,"y":-101.6,"c":245},{"t":"RTS-SUBCON","d":"2025-03-23","g":"rang-2","s":29749,"p":0,"r":18.38,"x":143.9,"y":-112.1,"k":1,"cr":18.38,"lx":0.0,"ly":-28.0},{"t":"RTS-TLPT Anhang I – Inhalt der Projektcharta (Artikel 9 Absatz 2 Buchstabe a)","d":"2025-02-13","g":"rang-2","s":1441,"p":0,"r":2.5,"x":-12.6,"y":167.8,"c":271},{"t":"RTS-TLPT Anhang II – Inhalt des Scoping-Dokuments (Artikel 9 Absatz 6)","d":"2025-02-13","g":"rang-2","s":1066,"p":0,"r":2.5,"x":-19.5,"y":171.4,"c":271},{"t":"RTS-TLPT Anhang III – Inhalt des spezifischen Bedrohungsanalyseberichts (Artikel 10 Absatz","d":"2025-02-13","g":"rang-2","s":2725,"p":0,"r":2.5,"x":-15.1,"y":161.1,"c":271},{"t":"RTS-TLPT Anhang IV – Inhalt des Red-Team-Testplans (Artikel 11 Absatz 1)","d":"2025-02-13","g":"rang-2","s":1626,"p":0,"r":2.5,"x":-10.8,"y":174.2,"c":271},{"t":"RTS-TLPT Anhang V – Inhalt des Red-Team-Testberichts (Artikel 12 Absatz 2)","d":"2025-02-13","g":"rang-2","s":1193,"p":0,"r":2.5,"x":-24.6,"y":166.3,"c":271},{"t":"RTS-TLPT Anhang VI – Inhalt des Blue-Team-Testberichts (Artikel 12 Absatz 4)","d":"2025-02-13","g":"rang-2","s":714,"p":0,"r":2.5,"x":-7.2,"y":162.5,"c":271},{"t":"RTS-TLPT Anhang VII – Inhalt des Berichts mit einer Zusammenfassung der maßgeblichen","d":"2025-02-13","g":"rang-2","s":1418,"p":0,"r":2.5,"x":-18.5,"y":178.4,"c":271},{"t":"RTS-TLPT Anhang VIII – Inhalt der Bescheinigung über den TLPT gemäß Artikel 26 Absatz 7","d":"2025-02-13","g":"rang-2","s":1109,"p":0,"r":2.5,"x":-21.0,"y":157.5,"c":271},{"t":"RTS-TLPT Art. 1 – Begriffsbestimmungen","d":"2025-02-13","g":"rang-2","s":4517,"p":0,"r":2.5,"x":-4.0,"y":172.1,"c":271},{"t":"RTS-TLPT Art. 10 – Testphase- Bedrohungsanalyse","d":"2025-02-13","g":"rang-2","s":3793,"p":0,"r":2.5,"x":-27.8,"y":172.9,"c":271},{"t":"RTS-TLPT Art. 11 – Testphase- Red-Team-Test","d":"2025-02-13","g":"rang-2","s":3802,"p":0,"r":2.5,"x":-9.8,"y":155.3,"c":271},{"t":"RTS-TLPT Art. 12 – Abschlussphase","d":"2025-02-13","g":"rang-2","s":2429,"p":0,"r":2.5,"x":-11.3,"y":181.7,"c":271},{"t":"RTS-TLPT Art. 13 – Plan mit Abhilfemaßnahmen","d":"2025-02-13","g":"rang-2","s":1180,"p":0,"r":2.5,"x":-28.7,"y":160.3,"c":271},{"t":"RTS-TLPT Art. 14 – Bescheinigung","d":"2025-02-13","g":"rang-2","s":386,"p":0,"r":2.5,"x":-0.3,"y":164.5,"c":271},{"t":"RTS-TLPT Art. 15 – Einsatz interner Tester","d":"2025-02-13","g":"rang-2","s":2235,"p":0,"r":2.5,"x":-25.0,"y":181.1,"c":271},{"t":"RTS-TLPT Art. 16 – Zusammenarbeit und gegenseitige Anerkennung","d":"2025-02-13","g":"rang-2","s":5723,"p":0,"r":2.5,"x":-17.8,"y":151.2,"c":271},{"t":"RTS-TLPT Art. 17 – Inkrafttreten","d":"2025-02-13","g":"rang-2","s":246,"p":0,"r":2.5,"x":-2.4,"y":179.0,"c":271},{"t":"RTS-TLPT Art. 2 – Bestimmung der Finanzunternehmen, die zur Durchführung eines TLPT","d":"2025-02-13","g":"rang-2","s":11105,"p":0,"r":2.5,"x":-33.5,"y":168.6,"c":271},{"t":"RTS-TLPT Art. 3 – TCT- und TLPT-Testmanager","d":"2025-02-13","g":"rang-2","s":736,"p":0,"r":2.5,"x":-2.6,"y":154.9,"c":271},{"t":"RTS-TLPT Art. 4 – Von den Finanzunternehmen zu treffende organisatorische Vorkehrungen","d":"2025-02-13","g":"rang-2","s":1428,"p":0,"r":2.5,"x":-16.5,"y":186.7,"c":271},{"t":"RTS-TLPT Art. 5 – Risikomanagement bei TLPT","d":"2025-02-13","g":"rang-2","s":1784,"p":0,"r":2.5,"x":-28.0,"y":153.0,"c":271},{"t":"RTS-TLPT Art. 6 – Risikomanagement bei gebündelten oder gemeinsamen TLPT","d":"2025-02-13","g":"rang-2","s":739,"p":0,"r":2.5,"x":4.0,"y":170.5,"c":271},{"t":"RTS-TLPT Art. 7 – Auswahl der TLPT-Anbieter","d":"2025-02-13","g":"rang-2","s":5953,"p":0,"r":2.5,"x":-32.3,"y":179.4,"c":271},{"t":"RTS-TLPT Art. 8 – Besondere Anforderungen bei gebündelten oder gemeinsamen TLPT","d":"2025-02-13","g":"rang-2","s":782,"p":0,"r":2.5,"x":-11.1,"y":147.7,"c":271},{"t":"RTS-TLPT Art. 9 – Vorbereitungsphase","d":"2025-02-13","g":"rang-2","s":6034,"p":0,"r":2.5,"x":-5.2,"y":186.2,"c":271},{"t":"RTS-TLPT","d":"2025-02-12","g":"rang-2","s":96911,"p":0,"r":28.63,"x":-15.7,"y":167.8,"k":1,"cr":28.63,"lx":0.0,"ly":-38.2},{"t":"RTS-TPPOL Art. 1 – Gesamtrisikoprofil und -komplexität","d":"2024-03-13","g":"rang-2","s":2832,"p":0,"r":2.5,"x":-279.8,"y":-10.3,"c":283},{"t":"RTS-TPPOL Art. 10 – Ausstieg aus und Beendigung von vertraglichen Vereinbarungen","d":"2024-03-13","g":"rang-2","s":877,"p":0,"r":2.5,"x":-286.6,"y":-6.7,"c":283},{"t":"RTS-TPPOL Art. 11 – Inkrafttreten","d":"2024-03-13","g":"rang-2","s":421,"p":0,"r":2.5,"x":-282.2,"y":-17.0,"c":283},{"t":"RTS-TPPOL Art. 2 – Anwendung auf eine Gruppe","d":"2024-03-13","g":"rang-2","s":484,"p":0,"r":2.5,"x":-277.9,"y":-3.9,"c":283},{"t":"RTS-TPPOL Art. 3 – Governance-Regelungen","d":"2024-03-13","g":"rang-2","s":3930,"p":0,"r":2.5,"x":-291.7,"y":-11.8,"c":283},{"t":"RTS-TPPOL Art. 4 – Hauptphasen des Lebenszyklus mit Blick auf die Annahme und Nutzung","d":"2024-03-13","g":"rang-2","s":1505,"p":0,"r":2.5,"x":-274.3,"y":-15.6,"c":283},{"t":"RTS-TPPOL Art. 5 – Ex-ante-Risikobewertung","d":"2024-03-13","g":"rang-2","s":1469,"p":0,"r":2.5,"x":-285.6,"y":0.2,"c":283},{"t":"RTS-TPPOL Art. 6 – Sorgfaltspflicht","d":"2024-03-13","g":"rang-2","s":4199,"p":0,"r":2.5,"x":-288.2,"y":-20.6,"c":283},{"t":"RTS-TPPOL Art. 7 – Interessenkonflikte","d":"2024-03-13","g":"rang-2","s":751,"p":0,"r":2.5,"x":-271.1,"y":-6.0,"c":283},{"t":"RTS-TPPOL Art. 8 – Vertragsklauseln","d":"2024-03-13","g":"rang-2","s":3679,"p":0,"r":2.5,"x":-294.9,"y":-5.3,"c":283},{"t":"RTS-TPPOL Art. 9 – Überwachung der vertraglichen Vereinbarungen","d":"2024-03-13","g":"rang-2","s":3190,"p":0,"r":2.5,"x":-276.9,"y":-22.8,"c":283},{"t":"RTS-TPPOL","d":"2024-03-12","g":"rang-2","s":36179,"p":0,"r":21.33,"x":-282.8,"y":-10.3,"k":1,"cr":21.33,"lx":0.0,"ly":-30.9},{"t":"EBA-GL-2019-02","d":"2019-02-25","g":"rang-3","s":105980,"p":0,"r":4.76,"x":-238.4,"y":-100.8,"px":46.2,"py":-34.7},{"t":"EBA-GL-2019-04","d":"2019-11-29","g":"rang-3","s":6198,"p":0,"r":2.5,"x":-239.8,"y":-79.6,"px":47.5,"py":-21.3},{"t":"EBA-GL-2021-05","d":"2021-07-02","g":"rang-3","s":154649,"p":0,"r":5.75,"x":-266.9,"y":-68.3,"px":34.3,"py":-24.7},{"t":"JC-GL-2024-34","d":"2024-06-05","g":"rang-3","s":12623,"p":0,"r":2.5,"x":-207.3,"y":-86.3},{"t":"JC-GL-2024-36","d":"2024-11-06","g":"rang-3","s":47978,"p":0,"r":3.21,"x":-220.1,"y":-64.7},{"t":"Q&A 2024_7047 – Critical Services Affected","d":"2024-11-12","g":"rang-4","s":2510,"p":0,"r":2.5,"x":123.7,"y":18.9},{"t":"Q&A 2024_7050 – Duplicate ICT Incident Reporting","d":"2024-11-12","g":"rang-4","s":1411,"p":0,"r":2.5,"x":24.0,"y":-79.1},{"t":"Q&A 2024_7089 – Identification of ICT Service Providers","d":"2025-08-08","g":"rang-4","s":1695,"p":0,"r":2.5,"x":7.4,"y":-46.4},{"t":"Q&A 2024_7096 – Exemption for Non-EU ICT Intra-group Service Providers","d":"2024-11-12","g":"rang-4","s":2242,"p":0,"r":2.5,"x":-9.9,"y":-24.5},{"t":"Q&A 2024_7098 – Scope of Register of Information for Contractual","d":"2025-07-27","g":"rang-4","s":2111,"p":0,"r":2.5,"x":121.0,"y":-28.8},{"t":"Q&A 2024_7178 – Elaboration on the meaning of a separated and dedicated","d":"2025-07-27","g":"rang-4","s":2962,"p":0,"r":2.5,"x":37.6,"y":-76.0},{"t":"Q&A 2024_7277 – Template specific instructions – field B_01.02.0050","d":"2025-03-28","g":"rang-4","s":1404,"p":0,"r":2.5,"x":89.9,"y":63.6},{"t":"Q&A 2024_7278 – Template specific instructions - field B_01.02.0060 (LEI","d":"2025-03-28","g":"rang-4","s":783,"p":0,"r":2.5,"x":12.0,"y":-33.1},{"t":"Q&A 2024_7279 – Template specific instructions – field B_02.02.0130","d":"2025-03-28","g":"rang-4","s":1191,"p":0,"r":2.5,"x":20.2,"y":62.7},{"t":"Q&A 2024_7280 – Template specific instructions – field B_02.02.0130","d":"2025-03-28","g":"rang-4","s":1014,"p":0,"r":2.5,"x":117.3,"y":6.5},{"t":"Q&A 2024_7281 – Template specific instructions – field B_02.02.0160","d":"2025-03-28","g":"rang-4","s":932,"p":0,"r":2.5,"x":41.5,"y":-62.5},{"t":"Q&A 2024_7282 – Template specific instructions – field B_04.01.0040","d":"2025-03-28","g":"rang-4","s":883,"p":0,"r":2.5,"x":28.1,"y":48.8},{"t":"Q&A 2024_7283 – Template specific instructions – field B_05.01.0020 (Type","d":"2025-03-28","g":"rang-4","s":1116,"p":0,"r":2.5,"x":69.7,"y":50.8},{"t":"Q&A 2024_7284 – Template specific instructions – field B_05.02.0060","d":"2025-03-28","g":"rang-4","s":1036,"p":0,"r":2.5,"x":5.0,"y":14.0},{"t":"Q&A 2024_7285 – Template specific instructions – primary keys","d":"2025-03-28","g":"rang-4","s":1029,"p":0,"r":2.5,"x":11.3,"y":26.4},{"t":"Q&A 2024_7290 – Definition and scope of ICT services","d":"2025-11-14","g":"rang-4","s":4108,"p":0,"r":2.5,"x":47.8,"y":-85.6},{"t":"Q&A 2025_7297 – The scope of the regulation described in Article 6","d":"2025-07-27","g":"rang-4","s":1831,"p":0,"r":2.5,"x":3.1,"y":0.1},{"t":"Q&A 2025_7309 – ANNUAL REPORT ON NEW ARRANGEMENTS ON THE USE OF ICT SERVICES","d":"2025-08-08","g":"rang-4","s":3528,"p":0,"r":2.5,"x":14.1,"y":49.9},{"t":"Q&A 2025_7313 – Part 2 – Template specific instructions to template B_06.01","d":"2025-03-28","g":"rang-4","s":1764,"p":0,"r":2.5,"x":4.4,"y":38.6},{"t":"Q&A 2025_7387 – How to fill the refPeriod field of the parameters.csv file","d":"2025-08-08","g":"rang-4","s":1056,"p":0,"r":2.5,"x":68.5,"y":-56.5},{"t":"Q&A 2025_7388 – Obligation to maintain a register of information for FEs","d":"2025-08-08","g":"rang-4","s":3177,"p":0,"r":2.5,"x":75.7,"y":-79.8},{"t":"Q&A 2025_7439 – Staff costs","d":"2025-11-14","g":"rang-4","s":4747,"p":0,"r":2.5,"x":65.5,"y":-70.2},{"t":"Q&A 2025_7466 – Public Authorities Exemption","d":"2026-02-06","g":"rang-4","s":4285,"p":0,"r":2.5,"x":34.1,"y":61.5},{"t":"Q&A 2025_7539 – Types of ---'telephone services---' included under","d":"2026-02-06","g":"rang-4","s":4228,"p":0,"r":2.5,"x":78.9,"y":-66.0},{"t":"Q&A 2025_7613 – Classification of phishing-attacks as a reportable major","d":"2026-02-06","g":"rang-4","s":3836,"p":0,"r":2.5,"x":103.7,"y":66.0},{"t":"Q&A 2103 – EUC, EULA and Shadow IT","d":"2024-09-27","g":"rang-4","s":3509,"p":0,"r":2.5,"x":-13.7,"y":52.0},{"t":"Q&A 2107 – Application of DORA for outsourced critical services that","d":"2024-09-27","g":"rang-4","s":1327,"p":0,"r":2.5,"x":-9.8,"y":38.5},{"t":"Q&A 2158 – Understandig of timelimits of intermediate repots for major","d":"2025-03-25","g":"rang-4","s":2446,"p":0,"r":2.5,"x":40.7,"y":75.8},{"t":"Q&A 2219 – Questions on Microenterprises and RMF","d":"2024-12-11","g":"rang-4","s":3420,"p":0,"r":2.5,"x":-23.9,"y":-25.5},{"t":"Q&A 2292 – Obligation to apply the ICT risk managment (Art. 5-15)","d":"2025-12-17","g":"rang-4","s":2832,"p":0,"r":2.5,"x":61.7,"y":-83.7},{"t":"Q&A 2356 – Application of DORA to AIFMs which have chosen to opt-in","d":"2025-05-27","g":"rang-4","s":1499,"p":0,"r":2.5,"x":81.8,"y":-52.2},{"t":"Q&A 2364 – Applicability of DORA and TFR Requirements to VASPs Not","d":"2025-11-14","g":"rang-4","s":2121,"p":0,"r":2.5,"x":109.8,"y":-20.4},{"t":"Q&A 2378 – Article 3(28) and EU Subcontractors","d":"2025-05-27","g":"rang-4","s":1011,"p":0,"r":2.5,"x":-4.7,"y":-11.5},{"t":"Q&A 2447 – direct agreements between AIF and ICT service provider","d":"2025-11-14","g":"rang-4","s":1451,"p":0,"r":2.5,"x":130.0,"y":31.6},{"t":"Q&A 2547 – Does DORA also apply to non-EU AIFM","d":"2025-11-14","g":"rang-4","s":2308,"p":0,"r":2.5,"x":-9.0,"y":14.0},{"t":"Q&A 2646 – Audit frequency limitations","d":"2026-01-28","g":"rang-4","s":1347,"p":0,"r":2.5,"x":42.0,"y":49.8},{"t":"Q&A 2734 - DORA003 – Other DORA topics","d":"2024-06-27","g":"rang-4","s":2149,"p":0,"r":2.5,"x":134.4,"y":-24.3},{"t":"Q&A 2749 - DORA005 – Other DORA topics","d":"2024-06-27","g":"rang-4","s":2029,"p":0,"r":2.5,"x":106.2,"y":-62.7},{"t":"Q&A 2750 - DORA006 – ICT risk management (DORA)","d":"2024-06-27","g":"rang-4","s":2658,"p":0,"r":2.5,"x":103.7,"y":-33.1},{"t":"Q&A 2787 - DORA011 – Other DORA topics","d":"2024-06-27","g":"rang-4","s":3783,"p":0,"r":2.5,"x":47.9,"y":63.8},{"t":"Q&A 2790 - DORA012 – Other DORA topics","d":"2024-06-27","g":"rang-4","s":1608,"p":0,"r":2.5,"x":83.3,"y":75.9},{"t":"Q&A 3074 - DORA096 – Other DORA topics","d":"2025-01-22","g":"rang-4","s":2918,"p":0,"r":2.5,"x":6.4,"y":65.0},{"t":"Q&A 3100 - DORA099 – Scope of group","d":"2026-04-10","g":"rang-4","s":2199,"p":0,"r":2.5,"x":98.6,"y":52.4},{"t":"Q&A 3450 - DORA 272 – ICT risk management (DORA)","d":"2025-11-03","g":"rang-4","s":1934,"p":0,"r":2.5,"x":108.8,"y":17.6},{"t":"Q&A 3480 - DORA 282 – Register of Information (DORA)","d":"2025-12-11","g":"rang-4","s":1377,"p":0,"r":2.5,"x":69.3,"y":76.7},{"t":"Q&A 3501 - DORA 286 – ICT third-party risk management (DORA)","d":"2026-06-01","g":"rang-4","s":2016,"p":0,"r":2.5,"x":102.1,"y":29.9},{"t":"Q&A DORA 136 - 3193 – Other DORA topics","d":"2025-11-20","g":"rang-4","s":1289,"p":0,"r":2.5,"x":6.0,"y":-20.5},{"t":"Q&A DORA 137 - 3195 – Other DORA topics","d":"2025-11-20","g":"rang-4","s":1696,"p":0,"r":2.5,"x":16.6,"y":-57.0},{"t":"Q&A DORA 215 - 3300 – ICT third-party risk management (DORA)","d":"2025-11-20","g":"rang-4","s":3010,"p":0,"r":2.5,"x":75.8,"y":63.4},{"t":"Q&A DORA 217 - 3302 – Reporting Templates","d":"2025-11-20","g":"rang-4","s":2529,"p":0,"r":2.5,"x":112.6,"y":-6.7},{"t":"Q&A DORA 242 - 3347 – ICT third-party risk management (DORA)","d":"2025-11-20","g":"rang-4","s":1378,"p":0,"r":2.5,"x":132.8,"y":-38.2},{"t":"Q&A DORA 247 - 3371 – Digital operational resilience testing (DORA)","d":"2025-11-20","g":"rang-4","s":2009,"p":0,"r":2.5,"x":54.6,"y":-57.5},{"t":"Q&A DORA 250 - 3380 – Other DORA topics","d":"2025-11-20","g":"rang-4","s":2115,"p":0,"r":2.5,"x":32.8,"y":-51.5},{"t":"Q&A DORA 252 - 3392 – ICT third-party risk management (DORA)","d":"2025-11-20","g":"rang-4","s":4550,"p":0,"r":2.5,"x":-6.7,"y":-48.9},{"t":"Q&A DORA 253 - 3393 – Register of Information (DORA)","d":"2025-11-20","g":"rang-4","s":1806,"p":0,"r":2.5,"x":-2.7,"y":26.5},{"t":"Q&A DORA001 - 2622 – Key Functions","d":"2025-12-17","g":"rang-4","s":3819,"p":0,"r":2.5,"x":21.2,"y":-43.7},{"t":"Q&A DORA019 - 2959 – Other DORA topics","d":"2025-03-28","g":"rang-4","s":1257,"p":0,"r":2.5,"x":-1.7,"y":-35.8},{"t":"Q&A DORA030 - 2999 – Other DORA topics","d":"2025-01-22","g":"rang-4","s":3526,"p":0,"r":2.5,"x":61.9,"y":64.8},{"t":"Q&A DORA033 - 2996 – ICT risk management (DORA)","d":"2025-07-24","g":"rang-4","s":1283,"p":0,"r":2.5,"x":0.3,"y":52.3},{"t":"Q&A DORA038 - 2991 – Other DORA topics","d":"2025-11-20","g":"rang-4","s":975,"p":0,"r":2.5,"x":-15.7,"y":-37.3},{"t":"Q&A DORA039 - 2990 – Register of Information (DORA)","d":"2025-03-28","g":"rang-4","s":1269,"p":0,"r":2.5,"x":26.8,"y":75.1},{"t":"Q&A DORA092 - 3076 – Register of Information (DORA)","d":"2025-03-28","g":"rang-4","s":1926,"p":0,"r":2.5,"x":108.4,"y":42.4},{"t":"Q&A DORA102 - 3097 – Other DORA topics","d":"2025-12-17","g":"rang-4","s":3433,"p":0,"r":2.5,"x":2.9,"y":-59.9},{"t":"Q&A DORA149 - 3210 – ICT third-party risk management (DORA)","d":"2025-07-24","g":"rang-4","s":2345,"p":0,"r":2.5,"x":54.7,"y":76.9},{"t":"Q&A DORA187 - 3199 – Register of Information (DORA)","d":"2025-08-08","g":"rang-4","s":1475,"p":0,"r":2.5,"x":55.8,"y":52.2},{"t":"Q&A DORA188 - 3200 – ICT third-party risk management (DORA)","d":"2025-08-08","g":"rang-4","s":784,"p":0,"r":2.5,"x":51.7,"y":-72.2},{"t":"Q&A DORA237 - 3350 – Other DORA topics","d":"2025-12-17","g":"rang-4","s":3205,"p":0,"r":2.5,"x":-18.7,"y":-12.5},{"t":"CRD Art. 3 – Begriffsbestimmungen","d":"2013-06-26","g":"rang-1","s":15236,"p":0,"r":2.5,"x":133.6,"y":211.7,"c":361},{"t":"CRD Art. 65 – Verwaltungssanktionen, Zwangsgelder und andere Verwaltungsmaßnahmen","d":"2013-06-26","g":"rang-1","s":5855,"p":0,"r":2.5,"x":126.8,"y":215.2,"c":361},{"t":"CRD Art. 74 – Interne Unternehmensführung und Sanierungs- und Abwicklungspläne","d":"2013-06-26","g":"rang-1","s":2083,"p":0,"r":2.5,"x":131.2,"y":205.0,"c":361},{"t":"CRD Art. 85 – Operationelles Risiko","d":"2013-06-26","g":"rang-1","s":1218,"p":0,"r":2.5,"x":135.5,"y":218.0,"c":361},{"t":"CRD Art. 97 – Aufsichtliche Überprüfung und Bewertung","d":"2013-06-26","g":"rang-1","s":5628,"p":0,"r":2.5,"x":121.7,"y":210.1,"c":361},{"t":"CRD","d":"2013-06-25","g":"rang-1","s":990660,"p":1,"r":16.56,"x":130.6,"y":211.7,"k":1,"cr":16.56,"lx":0.0,"ly":-26.2,"px":102.1,"py":27.2,"qx":0.0,"qy":26.2},{"t":"CRR Art. 312 – Eigenmittelanforderung für das operationelle Risiko","d":"2013-06-26","g":"rang-1","s":190,"p":0,"r":2.5,"x":244.9,"y":-103.5,"c":365},{"t":"CRR Art. 323 – Rahmen für die Steuerung operationeller Risiken","d":"2013-06-26","g":"rang-1","s":2367,"p":0,"r":2.5,"x":238.5,"y":-100.2,"c":365},{"t":"CRR Art. 4 – Begriffsbestimmungen","d":"2013-06-26","g":"rang-1","s":76950,"p":0,"r":2.5,"x":242.6,"y":-109.7,"c":365},{"t":"CRR","d":"2013-06-25","g":"rang-1","s":13807716,"p":1,"r":13.73,"x":242.1,"y":-103.5,"k":1,"cr":13.73,"lx":0.0,"ly":-23.3,"px":104.3,"py":-8.4,"qx":26.6,"qy":-16.3},{"t":"KWG § 1 – Begriffsbestimmungen; Verordnungsermächtigung","d":"1961-07-10","g":"rang-1","s":42937,"p":0,"r":2.5,"x":-170.6,"y":-65.0,"c":379},{"t":"KWG § 1a – Geltung der Richtlinie 2013-36-EU und der Verordnungen (EU) Nr","d":"1961-07-10","g":"rang-1","s":5999,"p":0,"r":2.5,"x":-177.4,"y":-61.5,"c":379},{"t":"KWG § 25a – Besondere organisatorische Pflichten, Bestimmungen für Risikoträger","d":"1961-07-10","g":"rang-1","s":19070,"p":0,"r":2.5,"x":-173.0,"y":-71.7,"c":379},{"t":"KWG § 25b – Auslagerung von Aktivitäten und Prozessen; Verordnungsermächtigung","d":"1961-07-10","g":"rang-1","s":4738,"p":0,"r":2.5,"x":-168.7,"y":-58.6,"c":379},{"t":"KWG § 25c – Geschäftsleiter","d":"1961-07-10","g":"rang-1","s":20677,"p":0,"r":2.5,"x":-182.5,"y":-66.6,"c":379},{"t":"KWG § 25d – Verwaltungs- oder Aufsichtsorgan","d":"1961-07-10","g":"rang-1","s":19948,"p":0,"r":2.5,"x":-165.1,"y":-70.4,"c":379},{"t":"KWG § 29 – Besondere Pflichten des Prüfers","d":"1961-07-10","g":"rang-1","s":13526,"p":0,"r":2.5,"x":-176.4,"y":-54.5,"c":379},{"t":"KWG § 47a – Besondere Befugnisse nach der Verordnung (EU) 2022-2554","d":"1961-07-10","g":"rang-1","s":1872,"p":0,"r":2.5,"x":-179.0,"y":-75.4,"c":379},{"t":"KWG § 53cg – Interne Unternehmensführung und Risikomanagement","d":"1961-07-10","g":"rang-1","s":4787,"p":0,"r":2.5,"x":-161.9,"y":-60.7,"c":379},{"t":"KWG § 56 – Bußgeldvorschriften","d":"1961-07-10","g":"rang-1","s":43717,"p":0,"r":2.5,"x":-185.8,"y":-60.0,"c":379},{"t":"KWG § 6 – Aufgaben","d":"1961-07-10","g":"rang-1","s":7873,"p":0,"r":2.5,"x":-167.7,"y":-77.5,"c":379},{"t":"KWG § 60c – Bekanntmachung von Maßnahmen und Sanktionen wegen Verstößen gegen","d":"1961-07-10","g":"rang-1","s":3433,"p":0,"r":2.5,"x":-169.3,"y":-51.2,"c":379},{"t":"KWG § 65a – Übergangsvorschrift zum Finanzmarktdigitalisierungsgesetz","d":"1961-07-10","g":"rang-1","s":1091,"p":0,"r":2.5,"x":-186.6,"y":-72.5,"c":379},{"t":"KWG","d":"1961-07-09","g":"rang-1","s":2772071,"p":1,"r":22.59,"x":-173.6,"y":-65.0,"k":1,"cr":22.59,"lx":0.0,"ly":-32.2,"px":89.7,"py":-51.2,"qx":0.0,"qy":-32.2},{"t":"Verordnung 1025-2012 Art. 2 – Begriffsbestimmungen","d":"2012-10-25","g":"rang-1","s":3983,"p":0,"r":2.5,"x":-262.6,"y":123.6,"c":381},{"t":"Verordnung 1025-2012","d":"2012-10-24","g":"rang-1","s":119490,"p":1,"r":12.17,"x":-267.3,"y":123.6,"k":1,"cr":12.17,"lx":0.0,"ly":-21.8,"px":6.7,"py":7.5,"qx":0.0,"qy":-21.8},{"t":"BOD 26-04","d":"2026-01-01","g":"standard","s":20000,"p":1,"r":2.5,"x":-204.3,"y":149.3},{"t":"CVSS v4.0","d":"2005-01-01","g":"standard","s":80000,"p":1,"r":4.14,"x":-203.5,"y":118.3,"px":44.7,"py":32.3},{"t":"E.O. 14028","d":"2021-01-01","g":"standard","s":40000,"p":1,"r":2.93,"x":-110.0,"y":128.7,"px":70.9,"py":0.6},{"t":"ISO 22301-2019","d":"2012-01-01","g":"standard","s":60000,"p":1,"r":3.58,"x":-159.5,"y":163.9,"px":59.5,"py":2.2},{"t":"ISO 31000-2018","d":"2009-01-01","g":"standard","s":40000,"p":1,"r":2.93,"x":-129.0,"y":155.3,"px":66.7,"py":11.1},{"t":"ISO-IEC 11770 (series, Parts 1–7)","d":"1996-01-01","g":"standard","s":400000,"p":1,"r":8.77,"x":-173.3,"y":63.7,"px":62.9,"py":-26.7},{"t":"ISO-IEC 19790-2025","d":"2006-01-01","g":"standard","s":160000,"p":1,"r":5.85,"x":-113.8,"y":146.0,"px":83.6,"py":6.0},{"t":"ISO-IEC 27000-2026","d":"2009-01-01","g":"standard","s":60000,"p":1,"r":3.58,"x":-199.2,"y":135.1,"px":63.4,"py":-9.3},{"t":"ISO-IEC 27001-2022","d":"1999-01-01","g":"standard","s":60000,"p":1,"r":3.58,"x":-189.2,"y":149.9,"px":49.1,"py":8.5},{"t":"ISO-IEC 27002-2022","d":"2000-01-01","g":"standard","s":320000,"p":1,"r":8.28,"x":-172.9,"y":180.5,"px":62.0,"py":33.8},{"t":"ISO-IEC 27005-2022","d":"2008-01-01","g":"standard","s":140000,"p":1,"r":5.48,"x":-141.7,"y":167.2,"px":75.7,"py":21.0},{"t":"ISO-IEC 27033 (series, Parts 1–7)","d":"2009-01-01","g":"standard","s":500000,"p":1,"r":8.78,"x":-220.5,"y":133.6,"px":27.7,"py":25.7},{"t":"ISO-IEC 27035 (series, Parts 1–4)","d":"2011-01-01","g":"standard","s":240000,"p":1,"r":7.17,"x":-148.4,"y":65.4,"px":78.8,"py":-12.6},{"t":"ISO-IEC 27036 (series, Parts 1–4)","d":"2013-01-01","g":"standard","s":200000,"p":1,"r":6.54,"x":-202.5,"y":83.8,"px":21.2,"py":-13.5},{"t":"ISO-IEC 29147-2018","d":"2014-01-01","g":"standard","s":60000,"p":1,"r":3.58,"x":-175.1,"y":159.8,"px":57.2,"py":17.6},{"t":"ISO-IEC 30111-2019","d":"2013-01-01","g":"standard","s":40000,"p":1,"r":2.93,"x":-200.0,"y":102.1,"px":49.2,"py":-3.0},{"t":"NIST SP 800-40r4","d":"2002-01-01","g":"standard","s":60000,"p":1,"r":3.58,"x":-190.0,"y":166.1,"px":43.9,"py":19.6},{"t":"OPS.1.1.3 Patch- und Änderungsmanagement (Edition 2023)","d":"2017-01-01","g":"standard","s":30000,"p":1,"r":2.53,"x":-184.8,"y":80.4,"px":52.8,"py":-12.8},{"t":"PCI DSS v4.0.1","d":"2004-01-01","g":"standard","s":720000,"p":1,"r":8.81,"x":-220.7,"y":103.3,"px":32.3,"py":3.6}],"edges":[[0,11],[0,33],[0,281],[1,6],[1,7],[1,8],[1,17],[1,73],[1,210],[2,3],[2,4],[2,5],[2,6],[2,7],[2,10],[2,44],[2,55],[2,62],[2,73],[2,74],[2,100],[2,211],[2,212],[2,213],[2,276],[2,287],[2,317],[3,7],[3,57],[3,73],[3,348],[4,7],[4,18],[4,19],[4,23],[4,44],[4,55],[4,73],[4,294],[4,339],[4,341],[5,7],[5,8],[5,55],[5,73],[5,211],[6,7],[6,55],[6,63],[6,73],[6,103],[6,237],[7,11],[7,18],[7,20],[7,33],[7,44],[7,55],[7,61],[7,62],[7,63],[7,72],[7,75],[7,78],[7,85],[7,88],[7,103],[7,168],[7,215],[7,216],[7,218],[7,219],[7,220],[7,221],[7,222],[7,223],[7,224],[7,225],[7,226],[7,227],[7,229],[7,230],[7,237],[7,317],[7,318],[8,9],[8,74],[8,82],[8,91],[8,96],[8,209],[9,10],[9,12],[9,33],[9,74],[9,82],[9,96],[9,104],[9,157],[9,158],[9,162],[9,163],[9,164],[9,165],[9,166],[9,167],[9,170],[9,289],[9,310],[10,11],[10,12],[10,14],[10,40],[10,53],[10,74],[10,82],[10,96],[10,132],[10,135],[10,140],[10,141],[10,142],[10,144],[10,159],[10,160],[10,168],[10,170],[10,171],[10,172],[10,173],[10,174],[10,175],[10,176],[10,178],[10,276],[10,287],[10,290],[11,22],[11,53],[11,69],[11,116],[11,117],[11,119],[11,124],[11,132],[11,134],[11,171],[11,187],[11,188],[11,319],[11,320],[11,322],[11,323],[11,325],[11,330],[11,335],[11,336],[11,340],[11,351],[11,355],[12,74],[12,82],[12,96],[12,110],[12,144],[12,168],[12,178],[13,40],[16,17],[16,18],[16,33],[16,55],[16,77],[16,91],[17,33],[17,77],[18,19],[18,23],[18,33],[18,56],[18,77],[18,108],[18,114],[18,252],[18,253],[18,254],[18,257],[18,258],[18,259],[18,260],[18,261],[18,266],[18,267],[18,270],[18,271],[19,23],[19,58],[19,77],[19,114],[19,260],[19,270],[19,271],[20,21],[20,24],[20,33],[20,36],[20,55],[20,73],[20,76],[20,79],[20,80],[20,84],[20,88],[20,93],[20,95],[20,97],[20,99],[20,102],[20,109],[20,112],[20,113],[20,120],[20,122],[20,124],[20,132],[20,134],[20,144],[20,151],[20,156],[20,186],[20,197],[20,241],[20,245],[20,277],[20,283],[20,288],[20,291],[20,293],[20,295],[20,296],[20,297],[20,298],[20,299],[20,300],[20,301],[20,302],[20,303],[20,305],[20,306],[20,307],[20,308],[20,309],[20,324],[20,332],[20,334],[20,337],[20,338],[20,352],[20,353],[20,354],[21,73],[21,80],[21,88],[21,113],[21,240],[22,24],[22,69],[22,147],[22,170],[22,304],[22,312],[22,313],[22,314],[22,326],[22,328],[22,331],[22,344],[22,345],[22,346],[22,364],[23,73],[23,80],[23,86],[23,88],[23,98],[23,106],[23,113],[23,241],[23,245],[23,281],[23,321],[23,322],[23,342],[24,25],[24,26],[24,27],[24,29],[24,35],[24,41],[24,52],[24,53],[24,81],[24,90],[24,94],[24,111],[24,115],[24,116],[24,117],[24,118],[24,119],[24,122],[24,126],[24,130],[24,180],[24,187],[24,288],[24,292],[25,28],[25,34],[25,36],[25,37],[25,40],[25,94],[25,101],[25,179],[25,288],[26,27],[26,28],[26,67],[26,94],[26,179],[26,288],[27,36],[27,56],[27,94],[27,180],[27,181],[28,29],[28,30],[28,31],[28,32],[28,34],[28,35],[28,36],[28,53],[28,94],[28,123],[28,179],[28,194],[28,288],[29,30],[29,31],[29,32],[29,94],[29,288],[30,94],[30,179],[31,34],[31,94],[31,179],[31,288],[32,34],[32,94],[32,179],[33,40],[33,55],[33,61],[33,63],[33,66],[34,37],[34,94],[34,180],[34,181],[34,183],[34,185],[34,288],[35,36],[35,94],[35,105],[35,107],[35,185],[35,194],[35,288],[36,45],[36,94],[36,192],[36,194],[36,288],[37,52],[37,94],[37,111],[37,127],[37,130],[38,94],[39,83],[40,117],[40,145],[40,254],[40,261],[40,271],[41,43],[42,43],[43,45],[43,46],[43,47],[43,48],[43,49],[44,55],[44,65],[44,70],[44,73],[44,76],[44,78],[44,84],[44,88],[44,91],[44,92],[44,315],[45,46],[45,47],[49,329],[51,56],[54,55],[55,62],[55,63],[55,68],[55,71],[55,73],[55,76],[55,78],[55,84],[55,88],[55,91],[55,92],[55,147],[55,206],[55,214],[55,217],[55,237],[55,276],[55,316],[55,332],[55,349],[61,73],[62,73],[62,196],[62,197],[62,199],[62,204],[62,208],[62,228],[62,233],[62,347],[63,73],[63,196],[63,197],[63,203],[63,206],[63,228],[63,233],[63,235],[63,236],[63,276],[64,89,1],[64,284,2],[64,285,1],[64,311],[64,327],[64,333],[64,343],[64,350],[74,287],[87,88],[87,284],[87,286],[87,368],[87,369],[88,284],[88,286],[88,368],[88,369],[89,285],[89,368],[89,369],[90,288],[92,286],[97,156],[98,245],[100,287],[101,288],[102,156],[103,237],[104,170],[105,194],[106,245],[107,185],[108,271],[109,283],[110,144],[110,178],[111,122],[111,130],[117,361],[122,185],[130,185],[132,170],[135,178],[144,170],[148,365],[170,172],[170,365],[179,194],[197,382],[197,383],[197,384],[197,385],[197,386],[197,387],[197,388],[197,389],[197,390],[197,391],[197,392],[197,393],[197,394],[197,395],[197,396],[197,397],[197,398],[197,399],[197,400],[199,382],[199,383],[199,384],[199,385],[199,386],[199,387],[199,388],[199,389],[199,390],[199,391],[199,392],[199,393],[199,394],[199,395],[199,396],[199,397],[199,398],[199,399],[199,400],[206,382],[206,383],[206,384],[206,385],[206,386],[206,387],[206,388],[206,389],[206,390],[206,391],[206,392],[206,393],[206,394],[206,395],[206,396],[206,397],[206,398],[206,399],[206,400],[233,382],[233,383],[233,384],[233,385],[233,386],[233,387],[233,388],[233,389],[233,390],[233,391],[233,392],[233,393],[233,394],[233,395],[233,396],[233,397],[233,398],[233,399],[233,400],[237,381],[263,361]]}</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("graph-data").textContent);
+  var PALETTE = DATA.palette, COLOR = {}, LABEL = {};
+  for (var pi = 0; pi < PALETTE.length; pi++) {
+    COLOR[PALETTE[pi][0]] = PALETTE[pi][1];
+    LABEL[PALETTE[pi][0]] = PALETTE[pi][2];
+  }
+  var MONTHS = ["Januar","Februar","März","April","Mai","Juni",
+                "Juli","August","September","Oktober","November","Dezember"];
+  var DUR = { prop: 45, compact: 30 };
+  var FADE = 0.9;
+
+  function toDay(iso) { var p = iso.split("-"); return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000; }
+  var T0 = toDay(DATA.t0);
+
+  var nodes = DATA.nodes.map(function (n) {
+    var hasPre = n.px !== undefined;
+    return {
+      t: n.t, d: n.d, g: n.g, cont: !!n.k, cr0: n.cr || 0, cr: n.cr || 0,
+      partial: !!n.p, size: n.s || 0, member: (n.c === undefined ? -1 : n.c),
+      dv: Math.max(toDay(n.d), T0), realdv: toDay(n.d),
+      tx: n.x, ty: n.y, r0: n.r, r: n.r, x: 0, y: 0, vx: 0, vy: 0, sx: 0, sy: 0,
+      // the pre-impact seat of the stock, and the label offsets for both layouts
+      pre: hasPre, px: (hasPre ? n.px : n.x), py: (hasPre ? n.py : n.y),
+      lx: n.lx || 0, ly: n.ly || 0,
+      qx: (n.qx === undefined ? (n.lx || 0) : n.qx),
+      qy: (n.qy === undefined ? (n.ly || 0) : n.qy),
+      lsx: 0, lsy: 0, born: false, a: 0, ap: 0, ac: 0
+    };
+  });
+  var IMP = DATA.impact;
+  var edges = DATA.edges, i;
+
+  var dvs = nodes.map(function (n) { return n.dv; });
+  var minDV = Math.min.apply(null, dvs), maxDV = Math.max.apply(null, dvs);
+  var spanDV = (maxDV - minDV) || 1;
+  var events = dvs.slice().sort(function (a, b) { return a - b; })
+                  .filter(function (v, k, arr) { return k === 0 || v !== arr[k - 1]; });
+  var evIndex = {};
+  for (i = 0; i < events.length; i++) evIndex[events[i]] = i;
+  var evLast = Math.max(events.length - 1, 1);
+  for (i = 0; i < nodes.length; i++) {
+    nodes[i].ap = (nodes[i].dv - minDV) / spanDV;
+    nodes[i].ac = evIndex[nodes[i].dv] / evLast;
+  }
+
+  var mode = "prop", speed = 1, playing = false, tNow = 0, last = 0;
+  function duration() { return DUR[mode]; }
+  function appearT(n) { return (mode === "prop" ? n.ap : n.ac) * duration(); }
+  function progress() { return Math.min(tNow / duration(), 1); }
+  function currentDV() {
+    var p = progress();
+    if (mode === "prop") return minDV + p * spanDV;
+    return events[Math.min(Math.round(p * evLast), events.length - 1)];
+  }
+
+  // The impact. Everything older than DORA waits packed around the spot DORA lands on
+  // and is driven out to its solved seat when the circle arrives; everything younger is
+  // born where it belongs. Both are pure functions of the clock, so scrubbing backwards
+  // replays the push instead of leaving the picture in a half-pushed state.
+  function impactRaw() { return (tNow - appearT(nodes[IMP.k])) / IMP.dur; }
+  function impactEase() {
+    var u = impactRaw();
+    if (u <= 0) return 0;
+    if (u >= 1) return 1;
+    return 1 - Math.pow(1 - u, 3);
+  }
+
+  var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  var W = 0, H = 0, scale = 1, offX = 0, offY = 0, dpr = 1, rMaxPx = 12, legendOpen = true;
+  function place() {
+    var e = impactEase(), q, n, tx, ty, lx, ly, o;
+    for (q = 0; q < nodes.length; q++) {
+      n = nodes[q];
+      tx = n.tx; ty = n.ty; lx = n.lx; ly = n.ly;
+      if (n.pre && e < 1) {
+        tx = n.px + (n.tx - n.px) * e; ty = n.py + (n.ty - n.py) * e;
+        lx = n.qx + (n.lx - n.qx) * e; ly = n.qy + (n.ly - n.qy) * e;
+      } else if (n.member >= 0) {
+        o = nodes[n.member];
+        if (o.pre && e < 1) {            // a unit rides inside its own act
+          tx = n.tx + (o.px - o.tx) * (1 - e); ty = n.ty + (o.py - o.ty) * (1 - e);
+        }
+      }
+      n.sx = offX + tx * scale; n.sy = offY + ty * scale;
+      n.lsx = offX + (tx + lx) * scale; n.lsy = offY + (ty + ly) * scale;
+    }
+  }
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // the panels are opaque, so the picture keeps clear of them; folding the legend
+    // away hands its column back to the graph
+    var padL = 30, padR = (W > 900 && legendOpen) ? 330 : 30, padT = 104, padB = 96;
+    var availW = Math.max(W - padL - padR, 120), availH = Math.max(H - padT - padB, 120);
+    scale = Math.min(availW / DATA.extent[0], availH / DATA.extent[1]);
+    offX = padL + availW / 2; offY = padT + availH / 2;
+    rMaxPx = 1;
+    for (var q = 0; q < nodes.length; q++) {
+      var n = nodes[q];
+      n.r = n.r0 * scale; n.cr = n.cr0 * scale;
+      if (n.r > rMaxPx) rMaxPx = n.r;
+    }
+    place();
+    for (q = 0; q < nodes.length; q++) {
+      if (!nodes[q].born) { nodes[q].x = nodes[q].sx; nodes[q].y = nodes[q].sy; }
+    }
+  }
+  window.addEventListener("resize", resize);
+
+  var CELL = 46;
+  function step(dt) {
+    var d = Math.min(dt, 0.05), q, n;
+    var ease = impactEase();
+    place();
+    CELL = Math.max(rMaxPx * 2 + 6 * scale, 12);
+    var grid = {}, visible = [], free = [];
+    for (q = 0; q < nodes.length; q++) {
+      n = nodes[q];
+      var at = appearT(n);
+      if (tNow >= at) {
+        if (!n.born) {
+          n.born = true;
+          var ang = Math.random() * Math.PI * 2, rad = (5 + Math.random() * 8) * scale;
+          n.x = n.sx + Math.cos(ang) * rad; n.y = n.sy + Math.sin(ang) * rad;
+          n.vx = 0; n.vy = 0;
+        }
+        n.a = Math.min((tNow - at) / FADE, 1);
+        visible.push(n);
+        // containers and their members keep their solved positions; only the free
+        // nodes get the light settling pass, so nothing can drift out of its circle
+        if (!n.cont && n.member < 0) {
+          if (n.pre && ease < 1) {       // the push owns the stock until it has landed
+            n.x = n.sx; n.y = n.sy; n.vx = 0; n.vy = 0;
+          } else {
+            free.push(n);
+            grid[(Math.floor(n.x / CELL)) + "," + (Math.floor(n.y / CELL))] =
+              (grid[(Math.floor(n.x / CELL)) + "," + (Math.floor(n.y / CELL))] || []).concat([n]);
+          }
+        }
+      } else { n.born = false; n.a = 0; }
+    }
+    for (var v = 0; v < free.length; v++) {
+      var a = free[v];
+      var gx = Math.floor(a.x / CELL), gy = Math.floor(a.y / CELL);
+      for (var ox = -1; ox <= 1; ox++) {
+        for (var oy = -1; oy <= 1; oy++) {
+          var cell = grid[(gx + ox) + "," + (gy + oy)];
+          if (!cell) continue;
+          for (var c = 0; c < cell.length; c++) {
+            var b = cell[c];
+            if (b === a) continue;
+            var ex = a.x - b.x, ey = a.y - b.y, dist2 = ex * ex + ey * ey;
+            var want = a.r + b.r + 2 * scale;
+            if (dist2 < want * want) {
+              var dist = Math.sqrt(dist2) || 0.001;
+              if (dist2 < 0.0001) { ex = Math.random() - 0.5; ey = Math.random() - 0.5; dist = 0.5; }
+              var push = (want - dist) / dist * 90;
+              a.vx += ex * push * d; a.vy += ey * push * d;
+            }
+          }
+        }
+      }
+      a.vx += (a.sx - a.x) * 9 * d; a.vy += (a.sy - a.y) * 9 * d;
+      var damp = Math.pow(0.0016, d);
+      a.vx *= damp; a.vy *= damp;
+      a.x += a.vx * d; a.y += a.vy * d;
+    }
+    for (v = 0; v < visible.length; v++) {
+      n = visible[v];
+      if (n.cont || n.member >= 0) { n.x = n.sx; n.y = n.sy; }
+    }
+    return visible.length;
+  }
+
+  var sel = null, clock = 0;
+  function gA(g) { return (sel === null || sel === g) ? 1 : 0.11; }
+
+  function draw(visibleCount) {
+    ctx.clearRect(0, 0, W, H);
+    var q, n, shownEdges = 0;
+    var pulse = 0.5 + 0.5 * Math.sin(clock * 4.2), dim = sel === null ? 1 : 0.32;
+
+    // 1) edges, underneath every node and every ring — plain references first, then the
+    // supersession lines on top of them
+    ctx.lineWidth = 1;
+    var supers = [];
+    for (q = 0; q < edges.length; q++) {
+      var A = nodes[edges[q][0]], B = nodes[edges[q][1]];
+      if (!A.born || !B.born) continue;
+      var al = Math.min(A.a, B.a);
+      if (al <= 0.02) continue;
+      shownEdges++;
+      al *= Math.max(gA(A.g), gA(B.g)) * dim;
+      var kind = edges[q][2] || 0;
+      if (kind) { supers.push([A, B, al, kind]); continue; }
+      ctx.strokeStyle = "rgba(150,170,205," + (al * 0.22).toFixed(3) + ")";
+      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    }
+    for (q = 0; q < supers.length; q++) {
+      var S = supers[q], full = S[3] === 1;
+      ctx.lineWidth = Math.max(1.2, 1.5 * scale);
+      ctx.strokeStyle = "rgba(179,57,47," + (S[2] * (full ? 0.85 : 0.55)).toFixed(3) + ")";
+      ctx.setLineDash(full ? [6 * scale, 4 * scale] : [2.5 * scale, 5 * scale]);
+      ctx.beginPath(); ctx.moveTo(S[0].x, S[0].y); ctx.lineTo(S[1].x, S[1].y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.lineWidth = 1;
+
+    // 2) act containers
+    for (q = 0; q < nodes.length; q++) {
+      n = nodes[q];
+      if (!n.cont || !n.born || n.a <= 0.01) continue;
+      var col = COLOR[n.g] || "#8A8F98", ca = n.a * gA(n.g);
+      ctx.globalAlpha = ca * 0.13;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.cr, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = ca * 0.62;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = Math.max(1.1, 1.4 * scale);
+      if (n.partial) ctx.setLineDash([4.5 * scale, 3.5 * scale]);
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.cr, 0, 6.2832); ctx.stroke();
+      ctx.setLineDash([]);
+      if (sel === n.g) {
+        ctx.globalAlpha = 0.25 + 0.45 * pulse;
+        ctx.lineWidth = Math.max(1.4, 2.2 * scale);
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.cr + 3 + 3 * pulse, 0, 6.2832); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // 3) the shock wave: DORA lands in the middle of the stock and drives it outward
+    var u = impactRaw();
+    if (u > 0 && u < 1.6 && nodes[IMP.k].born) {
+      var Dn = nodes[IMP.k], f = u / 1.6;
+      ctx.globalAlpha = (1 - f) * (1 - f) * 0.55;
+      ctx.strokeStyle = COLOR["rang-1"] || "#B3392F";
+      ctx.lineWidth = Math.max(1.5, 6 * scale * (1 - f));
+      ctx.beginPath();
+      ctx.arc(Dn.x, Dn.y, Dn.cr + (IMP.reach - Dn.cr0) * scale * (1 - (1 - f) * (1 - f)),
+              0, 6.2832);
+      ctx.stroke();
+      ctx.globalAlpha = 1; ctx.lineWidth = 1;
+    }
+
+    // 4) point nodes
+    for (q = 0; q < nodes.length; q++) {
+      n = nodes[q];
+      if (n.cont || !n.born || n.a <= 0.01) continue;
+      var c2 = COLOR[n.g] || "#8A8F98", pa = n.a * gA(n.g);
+      if (n.a < 1) {
+        ctx.globalAlpha = (1 - n.a) * 0.5;
+        ctx.strokeStyle = c2; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r + (1 - n.a) * 12 * scale, 0, 6.2832); ctx.stroke();
+      }
+      if (sel === n.g) {                 // a halo, so the 2,5-px ranks can be found at all
+        ctx.globalAlpha = 0.2 + 0.5 * pulse;
+        ctx.strokeStyle = c2; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 3.5 + 3 * pulse, 0, 6.2832); ctx.stroke();
+      }
+      ctx.globalAlpha = pa;
+      if (n.partial) {
+        ctx.fillStyle = c2; ctx.globalAlpha = pa * 0.22;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = pa;
+        ctx.strokeStyle = c2; ctx.lineWidth = Math.max(1.1, 1.5 * scale);
+        ctx.setLineDash([3.2 * scale, 2.8 * scale]);
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.2832); ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = c2;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.2832); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // 5) act labels last, seated by the generator so no two of them collide
+    ctx.font = "600 " + Math.max(9, Math.min(13, 11 * scale)).toFixed(1) + "px -apple-system, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (q = 0; q < nodes.length; q++) {
+      n = nodes[q];
+      if (!n.cont || !n.born || n.a <= 0.01) continue;
+      ctx.globalAlpha = n.a * 0.94 * gA(n.g);
+      ctx.fillStyle = COLOR[n.g] || "#8A8F98";
+      ctx.fillText(n.t, n.lsx, n.lsy);
+    }
+    ctx.globalAlpha = 1;
+
+    var dt2 = new Date(currentDV() * 86400000);
+    document.getElementById("clock").textContent =
+      MONTHS[dt2.getUTCMonth()] + " " + dt2.getUTCFullYear();
+    document.getElementById("counts").textContent =
+      visibleCount + " von " + nodes.length + " Knoten · " + shownEdges + " Kanten";
+  }
+
+  function frame(ts) {
+    var now = ts / 1000, dt = last ? now - last : 0;
+    last = now; clock = now;
+    if (playing) {
+      tNow += dt * speed;
+      if (tNow >= duration()) { tNow = duration(); setPlaying(false); }
+      syncScrub();
+    }
+    draw(step(dt));
+    requestAnimationFrame(frame);
+  }
+
+  var scrub = document.getElementById("scrub");
+  var fill = document.getElementById("fill");
+  var playBtn = document.getElementById("play");
+  function syncScrub() {
+    var p = progress();
+    scrub.value = String(Math.round(p * 1000));
+    fill.style.width = (p * 100).toFixed(2) + "%";
+  }
+  function setPlaying(on) { playing = on; playBtn.textContent = on ? "❚❚ Pause" : "▶ Abspielen"; }
+  playBtn.addEventListener("click", function () {
+    if (!playing && tNow >= duration()) tNow = 0;
+    setPlaying(!playing);
+  });
+  document.getElementById("restart").addEventListener("click", function () {
+    tNow = 0; syncScrub(); setPlaying(true);
+  });
+  scrub.addEventListener("input", function () {
+    tNow = (+scrub.value / 1000) * duration();
+    fill.style.width = (+scrub.value / 10).toFixed(2) + "%";
+  });
+  var spBtns = document.querySelectorAll(".sp");
+  for (i = 0; i < spBtns.length; i++) {
+    spBtns[i].addEventListener("click", function (ev) {
+      speed = parseFloat(ev.currentTarget.getAttribute("data-s"));
+      for (var b = 0; b < spBtns.length; b++) spBtns[b].classList.remove("on");
+      ev.currentTarget.classList.add("on");
+    });
+  }
+  var mdBtns = document.querySelectorAll(".md");
+  for (i = 0; i < mdBtns.length; i++) {
+    mdBtns[i].addEventListener("click", function (ev) {
+      var p = progress();
+      mode = ev.currentTarget.getAttribute("data-m");
+      for (var b = 0; b < mdBtns.length; b++) mdBtns[b].classList.remove("on");
+      ev.currentTarget.classList.add("on");
+      tNow = p * duration();
+      buildTicks(); syncScrub();
+    });
+  }
+  document.addEventListener("keydown", function (ev) {
+    if (ev.code === "Space") { ev.preventDefault(); playBtn.click(); }
+  });
+
+  function fractionFor(dv) {
+    if (mode === "prop") return (dv - minDV) / spanDV;
+    var lo = 0, hi = events.length - 1, mid;
+    while (lo < hi) { mid = (lo + hi) >> 1; if (events[mid] < dv) lo = mid + 1; else hi = mid; }
+    return lo / evLast;
+  }
+  function buildTicks() {
+    var host = document.getElementById("ticks");
+    host.innerHTML = "";
+    var y0 = new Date(minDV * 86400000).getUTCFullYear();
+    var y1 = new Date(maxDV * 86400000).getUTCFullYear();
+    var placed = -99;
+    for (var y = y0; y <= y1; y++) {
+      var f = fractionFor(Date.UTC(y, 0, 1) / 86400000);
+      if (f < 0 || f > 1) continue;
+      if (f * 100 - placed < 3.6) continue;
+      placed = f * 100;
+      var s = document.createElement("span");
+      s.textContent = String(y);
+      s.style.left = (f * 100).toFixed(2) + "%";
+      host.appendChild(s);
+    }
+  }
+
+  var legendRows = [];
+  (function () {
+    var counts = {};
+    for (var q = 0; q < nodes.length; q++) counts[nodes[q].g] = (counts[nodes[q].g] || 0) + 1;
+    var ul = document.getElementById("legend-list");
+    function pick(key) {
+      return function () {
+        sel = (sel === key) ? null : key;
+        for (var b = 0; b < legendRows.length; b++) {
+          legendRows[b][0].className = (sel === legendRows[b][1]) ? "on" : "";
+        }
+      };
+    }
+    for (var p = 0; p < PALETTE.length; p++) {
+      var li = document.createElement("li");
+      var sw = document.createElement("span");
+      sw.className = "sw"; sw.style.background = PALETTE[p][1];
+      var tx = document.createElement("span"); tx.textContent = PALETTE[p][2];
+      var nn = document.createElement("span");
+      nn.className = "n"; nn.textContent = counts[PALETTE[p][0]] || 0;
+      li.appendChild(sw); li.appendChild(tx); li.appendChild(nn);
+      li.title = "Diesen Rang hervorheben";
+      li.addEventListener("click", pick(PALETTE[p][0]));
+      legendRows.push([li, PALETTE[p][0]]);
+      ul.appendChild(li);
+    }
+    var legend = document.getElementById("legend"), fold = document.getElementById("legfold");
+    fold.addEventListener("click", function () {
+      legendOpen = !legendOpen;
+      legend.className = legendOpen ? "panel" : "panel off";
+      fold.textContent = legendOpen ? "–" : "+";
+      resize();
+    });
+  })();
+
+  var tip = document.getElementById("tip");
+  var tipT = tip.querySelector(".tt"), tipD = tip.querySelector(".td");
+  cv.addEventListener("mousemove", function (ev) {
+    var rect = cv.getBoundingClientRect();
+    var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    var best = null, bd = 1e9, q, n, ex, ey, d2;
+    for (q = 0; q < nodes.length; q++) {          // points first
+      n = nodes[q];
+      if (n.cont || !n.born || n.a < 0.3) continue;
+      ex = n.x - mx; ey = n.y - my; d2 = ex * ex + ey * ey;
+      var lim = (n.r + 6) * (n.r + 6);
+      if (d2 < lim && d2 < bd) { bd = d2; best = n; }
+    }
+    if (!best) {                                   // then container rings
+      for (q = 0; q < nodes.length; q++) {
+        n = nodes[q];
+        if (!n.cont || !n.born || n.a < 0.3) continue;
+        var dd = Math.abs(Math.sqrt((n.x - mx) * (n.x - mx) + (n.y - my) * (n.y - my)) - n.cr);
+        if (dd < 8 && dd < bd) { bd = dd; best = n; }
+      }
+    }
+    if (best) {
+      tipT.textContent = best.t;
+      tipD.textContent = best.d + " · " + (LABEL[best.g] || best.g)
+        + (best.cont ? " · Rechtsakt" : "");
+      tip.style.display = "block";
+      var tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - tw - 10) + "px";
+      tip.style.top = Math.max(ev.clientY - th - 12, 8) + "px";
+    } else { tip.style.display = "none"; }
+  });
+  cv.addEventListener("mouseleave", function () { tip.style.display = "none"; });
+
+  resize(); buildTicks(); syncScrub(); setPlaying(true);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -32,29 +32,31 @@ Die Metadaten stammen aus einem privaten Korpus-Spiegel (Projekt `ask-dora`), de
 ## Erzeugungskette
 
 ```
-Korpus  --build_vault.py-->  Obsidian-Vault  --export_graph.py-->  data/graph.json
-                                                                        |
-                                                    build_site.py       |  make_links.py
-                                                            v           v
-                                                    docs/index.html   LINKS.md
+Korpus  -->  Metadaten-Export  -->  data/graph.json      (im Korpus-Projekt, nicht hier)
+                                          |
+                          build_site.py   |   make_links.py
+                                  v       v
+                        docs/index.html  ·  LINKS.md     (dieses Repo)
 ```
 
-Nur die letzten beiden Schritte lassen sich mit dem Inhalt dieses Repos nachvollziehen — sie brauchen ausschließlich `data/graph.json`:
+`data/graph.json` kommt fertig aus dem Korpus-Projekt; alles ab dort ist mit dem Inhalt dieses Repos vollständig nachvollziehbar:
 
 ```bash
 python3 generator/build_site.py && python3 generator/check_site.py
 ```
 
-`build_vault.py` und `export_graph.py` sind der Vollständigkeit halber enthalten; sie setzen den Korpus-Spiegel voraus. Alle Skripte laufen mit der Python-Standardbibliothek, ohne Abhängigkeiten und ohne Netz.
+Die Skripte laufen mit der Python-Standardbibliothek, ohne Abhängigkeiten und ohne Netz. Ein Bau ist deterministisch: gleiche Eingabedatei, gleiche Ausgabebytes.
 
 ## Annahmen und Grenzen
 
 Der Graph ist eine Darstellung, kein Nachschlagewerk — mehrere Kanten und Werte sind bewusst gesetzt, weil die Daten sie nicht hergeben:
 
-- **Kuratierte Kanten.** Dass ein Final Report seinen RTS vorbereitet, dass MaRisk und BAIT das KWG konkretisieren und EBA-Leitlinien umsetzen, dass DORA sie verdrängt: Nichts davon steht als maschinenlesbare Beziehung in den Quellen. Diese Kanten sind aus den Dokumenttiteln und dem Aufhebungsstand kuratiert und im Generator als Konstanten sichtbar.
+- **Kuratierte Kanten.** Dass ein Final Report seinen RTS vorbereitet, dass MaRisk und BAIT das KWG konkretisieren und EBA-Leitlinien umsetzen, dass DORA sie verdrängt: Nichts davon steht als maschinenlesbare Beziehung in den Quellen. Diese Kanten sind aus den Dokumenttiteln und dem Aufhebungsstand kuratiert.
 - **Datumsannahmen.** Maßstab ist die Reihenfolge, nicht das exakte Datum. Wo eine Erstfassung nicht datiert vorliegt, steht eine plausible Näherung; die ISO-27000-Familie ist über ihre BS-7799-Vorläufer datiert.
 - **Umfangsschätzungen.** Teilweise gespiegelte Akte sind über den mittleren Umfang ihrer gespiegelten Einheiten hochgerechnet, Standards über ihre Seitenzahl geschätzt. Beide tragen den gestrichelten Rand.
 - **Der Korpus ist ein Ausschnitt.** Was nicht gespiegelt ist, fehlt im Bild — Vollständigkeit ist weder erreicht noch behauptet.
+
+Jede dieser Setzungen steht maschinenlesbar in `data/graph.json` unter `meta.assumptions`: welches Datum warum überschrieben wurde, worauf eine Umfangsschätzung beruht, und mit welcher Begründung eine kuratierte Kante gezogen ist. `check_site.py` prüft, dass Begründung und Graph nicht auseinanderlaufen.
 
 ## Haftungsausschluss
 
