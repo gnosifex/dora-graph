@@ -1,0 +1,26 @@
+name: checks
+
+# Verifies the published page against the graph data: geometry guarantees
+# (no overlaps, every unit inside its own act circle), size model and the
+# structural integrity of the embedded JSON. Standard library only, no
+# network, no third-party actions.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify built page
+        run: python3 generator/check_site.py
+      - name: Verify LINKS.md is in sync with the graph
+        run: |
+          python3 generator/make_links.py --out /tmp/LINKS.md
+          diff -u LINKS.md /tmp/LINKS.md
