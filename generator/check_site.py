@@ -4,8 +4,9 @@
 Five families of checks:
   * the page:   placeholder replaced, script tags paired, JS structurally intact and
                 still carrying the render decisions the design depends on, the opening
-                sequence and its sound wired the way the design requires, and the whole
-                document self-contained — no address but the repo link, nothing fetched
+                sequence wired the way the design requires, the narrow-screen layout
+                present and fed by measured panels, and the whole document
+                self-contained — no address but the repo link, nothing fetched
   * the payload the page embeds: field names, index ranges, date shapes, and agreement
                 with data/graph.json on counts, titles and supersession edges
   * the geometry, for BOTH layouts (final picture and pre-impact pack): zero overlaps in
@@ -289,74 +290,6 @@ def check_opening(html: str, js: str) -> None:
     ok("Math.random()" not in js.split("function drawStars", 1)[-1].split("function introLayout", 1)[0],
        "star field is seeded, not random")
 
-    print("\n== sound")
-    ok('id="sound"' in html and "♪ Ton" in html, "the bar carries the sound switch")
-    ok("var soundOn = false" in js, "sound off by default")
-    ok('soundBtn.addEventListener("click", function () { setSound(!soundOn); })' in js,
-       "sound starts on a user gesture only")
-    ok('document.addEventListener("pointerdown", arm)' in js,
-       "a remembered switch still waits for a gesture")
-    ok('store(SKEY,' in js and 'stored(SKEY) === "1"' in js, "sound state in localStorage")
-    ok("createOscillator" in js and "createBuffer(" in js and "createBiquadFilter" in js,
-       "the sound is generated in the browser")
-    ok("soundBtn.disabled = true" in js, "no sound under reduced motion")
-    ok("impactRaw()" in js.split("function audioUpdate", 1)[-1].split("function setSound", 1)[0],
-       "the swell follows the impact")
-
-    # The register decides whether the sound exists at all on a phone: a handset speaker
-    # radiates next to nothing below ~400 Hz, so the parts that carry it must sit above
-    # the fundamental, and the fundamental itself must be up out of the cellar.
-    voices = re.search(r"var VOICES = \[(.*?)\];", js, re.S)
-    ok(voices is not None, "the partials are declared as one table")
-    rows = [[float(v) for v in r.split(",")]
-            for r in re.findall(r"\[([^\[\]]+)\]", voices.group(1))] if voices else []
-    freqs = sorted(r[0] for r in rows)
-    ok(len(rows) >= 4, "three to four partials at least, plus the sub", f"{len(rows)}")
-    carry = [f for f in freqs if f >= 180.0]
-    ok(len(carry) >= 3 and 180.0 <= carry[0] <= 260.0,
-       "fundamental in the band a small speaker reproduces",
-       f"{carry[0]:g} Hz, carrying {len(carry)}")
-    ok(max(freqs) >= 500.0, "a partial high enough to survive a phone speaker",
-       f"top {max(freqs):g} Hz")
-    sub = [f for f in freqs if f < 180.0]
-    ok(len(sub) <= 1 and (not sub or sum(r[2] for r in rows if r[0] == sub[0])
-                          <= 0.5 * sum(r[2] for r in rows if r[0] >= 180.0)),
-       "the sub is a floor, not something the sound leans on",
-       f"{sub[0]:g} Hz" if sub else "none")
-    ratios = sorted(round(f / carry[0], 3) for f in freqs)
-    ok(all(abs(r * 2 - round(r * 2)) < 0.02 for r in ratios),
-       "every partial is consonant with the fundamental", str(ratios))
-    # a hair of detune keeps the stack from sounding computed; a whole beat is the hum
-    # the old surface had
-    ok(all(abs(r[1]) <= 12.0 for r in rows), "detune stays inside a few cents",
-       str([r[1] for r in rows]))
-    rates = [r[4] for r in rows]
-    ok(all(0.02 <= x <= 0.07 for x in rates), "every breath is slower than one cycle "
-       "in fifteen seconds", str(rates))
-    ok(len(set(rates)) == len(rates) and len({r[5] for r in rows}) == len(rows),
-       "no two partials breathe at the same rate or phase")
-    ok("createPeriodicWave" in js, "the breath phases are built, not left to chance")
-    cut = re.search(r'lp\.type = "lowpass"; lp\.frequency\.value = ([0-9.]+)', js)
-    ok(cut is not None and 1200.0 <= float(cut.group(1)) <= 1800.0,
-       "the pad sits under a gentle low-pass", cut.group(1) if cut else "")
-
-    print("\n== sound: level and iOS")
-    top = re.search(r"MASTER_MAX = ([0-9.]+)", js)
-    peak = float(top.group(1)) if top else 1.0
-    worst = peak * (sum(r[2] + r[3] for r in rows) + 0.12)
-    ok(0.05 <= peak <= 0.2, "master ceiling audible but discreet", f"{peak:g}")
-    ok(worst < 0.6, "the partials cannot add up to a clipped sample",
-       f"worst case {worst:.3f} of full scale")
-    ok("window.AudioContext || window.webkitAudioContext" in js,
-       "the context is found under both names")
-    setter = js.split("function setSound", 1)[-1].split("soundBtn.addEventListener", 1)[0]
-    ok("actx.resume" in setter, "resume is asked for inside the gesture")
-    ok('actx.state === "running"' in setter,
-       "the switch believes the context, not the request")
-    ok("SND_BLOCKED" in setter and "soundState(false, SND_BLOCKED)" in setter,
-       "a context that will not start drops the switch back visibly")
-    ok("Stummschalter" in html, "the iPhone mute switch is named where the user is")
-
 
 def prose(fragment: str) -> str:
     """The running text a reader actually faces: markup, the rank rows the legend is
@@ -365,12 +298,35 @@ def prose(fragment: str) -> str:
     return " ".join(txt.split())
 
 
+def check_head(html: str) -> None:
+    """The head panel names the picture and carries the way back to the sources.
+
+    The link sits on the counts line, where no fold can reach it and the bar does not
+    have to spend a control on it.
+    """
+    print("\n== head panel")
+    head = html.split('id="head"', 1)[-1].split('</div>\n\n<div class="panel"', 1)[0]
+    ok('id="repo"' in head and REPO_URL in head,
+       "the repo link sits in the head panel, clear of every fold")
+    anchor = head.split('id="repo"', 1)[-1][:260]
+    ok('target="_blank"' in anchor and 'rel="noopener"' in anchor,
+       "the repo link opens safely in a new tab")
+    ok("github.com/gnosifex/dora-graph</a>" in anchor,
+       "the link reads as the address it goes to")
+    ok('id="meta"' in head and head.index('id="counts"') < head.index('id="repo"'),
+       "the link shares the counts line rather than a line of its own")
+    ok("#repo:hover" in html and "text-decoration: underline" in html,
+       "the link underlines on hover only")
+    bar = html.split('id="bar"', 1)[-1]
+    ok('id="repo"' not in bar, "the bar no longer carries a repo button")
+
+
 def check_legend(html: str) -> None:
     """The legend decodes the picture; it does not explain it.
 
     Everything the opening already says was moved out of here, so the panel stays short
-    enough to read at a glance, and the two things that must never be hidden — the
-    caveat and the way back to the sources — sit outside both folds.
+    enough to read at a glance, and the caveat that must never be hidden sits outside
+    both folds.
     """
     print("\n== legend")
     panel = html.split('id="legend"', 1)[-1].split("</div>\n\n<div class=\"panel\"", 1)[0]
@@ -397,15 +353,82 @@ def check_legend(html: str) -> None:
        "the caveat stands after the fold, not inside it")
     ok("Klick auf eine Zeile" in panel and "Klick auf eine Zeile" not in visible,
        "the click hint is a tooltip on the list, not another line of prose")
-    bar = html.split('id="bar"', 1)[-1]
-    ok('id="repo"' in bar and REPO_URL in bar,
-       "the repo link sits in the bar, clear of both folds")
-    ok('target="_blank"' in bar.split('id="repo"', 1)[-1][:220]
-       and 'rel="noopener"' in bar.split('id="repo"', 1)[-1][:220],
-       "the repo link opens safely in a new tab")
-    ok('id="repo"' not in panel, "the repo link is not inside the legend any more")
+    ok('id="repo"' not in panel, "the repo link is not inside the legend")
     ok("max-height: calc(100vh" in html and "overflow-y: auto" in html,
        "a low window scrolls the legend instead of cutting it off")
+
+
+def check_mobile(html: str, js: str) -> None:
+    """The narrow-screen layout, as far as a file can be read without a browser.
+
+    Nothing here renders, so the pass asserts the mechanism rather than the picture:
+    the breakpoint exists and the stylesheet and the script agree on it, the panels
+    give up their floating boxes for the screen edges, the bar wraps and keeps
+    finger-sized targets, the legend becomes a folded overlay, and — the one that
+    decides whether anything is visible at all — the fit measures the panels instead
+    of assuming a desktop column.
+    """
+    print("\n== narrow screens")
+    ok('name="viewport"' in html and "width=device-width" in html, "viewport meta present")
+    query = re.search(r"@media \(max-width: 720px\) \{(.*?)\n  /\*", html, re.S)
+    ok(query is not None, "there is a phone breakpoint at 720 px")
+    if query is None:
+        return
+    mq = query.group(1)
+    ok("var MOBILE_W = 720" in js, "the script uses the same breakpoint as the stylesheet")
+
+    for frag, label in (("#head {", "head plate"), ("#bar {", "bar"), ("#legend {", "legend")):
+        ok(frag in mq, f"the breakpoint restyles the {label}")
+    ok("#head .sub { display: none; }" in mq, "head: the subtitle gives way")
+    ok(re.search(r"#head h1 \{[^}]*font-size: 1[0-9]px", mq) is not None,
+       "head: the title is set smaller")
+    ok("display: flex" in mq.split("#head {", 1)[-1].split("}", 1)[0]
+       and "flex-wrap: wrap" in mq.split("#head {", 1)[-1].split("}", 1)[0],
+       "head: date and counts share one wrapped row")
+    for frag in ("left: 0; right: 0",):
+        ok(mq.count(frag) >= 2, "head and bar span the full width", frag)
+    ok("#row { display: flex;" in html and "flex-wrap: wrap" in html,
+       "the bar row wraps rather than overflowing")
+    ok(re.search(r"button \{[^}]*min-height: 40px", mq) is not None,
+       "every control keeps a 40 px touch target")
+    ok(".spacer { display: none; }" in mq, "the bar drops the spacer that forced one line")
+    ok('.sp[data-s="0.5"], .sp[data-s="2"] { display: none; }' in html,
+       "the two intermediate speeds go on a very narrow screen")
+    ok('data-s="1"' in html and 'data-s="4"' in html, "1x and 4x survive")
+    ok('class="md on" data-m="prop"' in html and 'data-m="compact"' in html,
+       "proportional and compact stay")
+    legend_mq = mq.split("#legend {", 1)[-1].split("}", 1)[0]
+    ok("max-height: 50vh" in legend_mq and "max-width: calc(100vw" in legend_mq,
+       "legend: an overlay of at most half the screen, scrolling inside itself")
+    ok("var legPref = stored(LKEY)" in js
+       and "legPref === null ? window.innerWidth > MOBILE_W" in js,
+       "legend: folded by default on a narrow screen, a stored choice beating that")
+    ok('store(LKEY,' in js, "legend: the fold is remembered")
+    ok(re.search(r"#crawl h2 \{ font-size: 2[0-9]px", mq) is not None
+       and re.search(r"#crawl p \{ font-size: 1[0-9]px", mq) is not None,
+       "the opening is set down to phone sizes")
+    ok("#skip { right: 10px; bottom: 10px;" in mq, "the skip button stays in reach")
+
+    print("\n== fit: the picture takes what the panels leave")
+    fit = js.split("function pads()", 1)[-1].split("function resize()", 1)[0]
+    ok(bool(fit), "the keep-out zones are computed in one place")
+    ok("getBoundingClientRect" in fit,
+       "the zones are measured off the panels, not assumed")
+    for frag in ("330", "padR", "W > 900"):
+        ok(frag not in fit, f"no fixed desktop column left in the fit: {frag}")
+    ok("narrow()" in fit, "the fit knows the two layouts apart")
+    ok("legendOpen" in fit, "folding the legend still hands its column back")
+    ok(re.search(r"legEl\.style\.top = narrow\(\)", js) is not None,
+       "the overlay legend is seated under the head plate it measured")
+    ok("window.addEventListener(\"resize\", resize)" in js, "the fit re-runs on resize")
+    ok("rotate" not in js.split("function pads()", 1)[-1].split("function step", 1)[0],
+       "portrait is fitted, not turned")
+    ok('cv.addEventListener("pointerdown"' in js and 'ev.pointerType !== "touch"' in js,
+       "a tap opens the tooltip a touch screen cannot hover for")
+    ok('cv.addEventListener("pointermove"' in js and 'ev.pointerType === "touch"' in js,
+       "the hover path stays with the pointer that has one")
+    ok("if (!best) { hideTip(); return false; }" in js,
+       "a tap on empty space closes the tooltip again")
 
 
 def check_selfcontained(html: str) -> None:
@@ -894,7 +917,9 @@ def main(argv: list[str] | None = None) -> int:
     check_file(html)
     js = check_js(html)
     check_opening(html, js)
+    check_head(html)
     check_legend(html)
+    check_mobile(html, js)
     check_selfcontained(html)
     payload = load_payload(html)
     check_payload(payload, graph)

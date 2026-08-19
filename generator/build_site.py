@@ -798,6 +798,11 @@ HTML = r"""<!doctype html>
   #head .sub { color: var(--dim); font-size: 11px; }
   #clock { margin-top: 5px; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
   #counts { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+  /* the way back to the sources, on the counts line and outside every fold */
+  #meta { display: flex; align-items: baseline; gap: 14px; }
+  #repo { margin-left: auto; color: var(--dim); text-decoration: none; font-size: 11px;
+    white-space: nowrap; }
+  #repo:hover { color: var(--fg); text-decoration: underline; }
   #legend { top: 14px; right: 14px; padding: 10px 12px; max-width: 306px; }
   #legend h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--dim);
     text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 8px; }
@@ -829,10 +834,6 @@ HTML = r"""<!doctype html>
     border:1.4px dashed #8f9bb0; vertical-align:-2px; }
   #legend .sup { display:inline-block; width:12px; height:0; vertical-align:3px;
     border-top:1.6px dashed #B3392F; }
-  /* the way back to the sources: in the bar, so neither fold can hide it */
-  #repo { color: var(--dim); text-decoration: none; font-size: 12px; padding: 4px 8px;
-    border: 1px solid var(--line); border-radius: 7px; white-space: nowrap; }
-  #repo:hover { color: var(--fg); background: rgba(255,255,255,.09); }
   #bar { left: 14px; right: 14px; bottom: 14px; padding: 8px 12px 6px; }
   #row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   button { background: rgba(255,255,255,.07); color: var(--fg); border: 1px solid var(--line);
@@ -885,9 +886,45 @@ HTML = r"""<!doctype html>
     -webkit-hyphens: auto; hyphens: auto; }
   #crawl .fine { color: #a9b7cd; font-size: 23px; }
   #skip { position: fixed; right: 18px; bottom: 18px; z-index: 21; padding: 7px 14px; }
-  @media (max-width: 900px) { #legend { display: none; }
+  @media (max-width: 900px) {
     #crawl h2 { font-size: 34px; } #crawl p { font-size: 20px; }
     #crawl .eyebrow { font-size: 15px; } #crawl .fine { font-size: 17px; } }
+  /* Phones, portrait. The panels stop floating over the picture: the head plate takes
+     the top edge, the bar the bottom one, and the legend hangs between them as an
+     overlay the graph does not have to keep a column free for. The layout is wider
+     than it is tall and is not turned — it is fitted into the band that is left, which
+     is small but complete, and every control keeps a finger-sized target. */
+  @media (max-width: 720px) {
+    #head { top: 0; left: 0; right: 0; padding: 7px 10px; border-width: 0 0 1px;
+      border-radius: 0; display: flex; flex-wrap: wrap; align-items: baseline;
+      column-gap: 10px; }
+    #head h1 { flex: 1 0 100%; font-size: 15px; }
+    #head .sub { display: none; }
+    #clock { margin-top: 2px; font-size: 15px; }
+    #meta { flex: 1 1 auto; gap: 10px; }
+    #counts, #repo { font-size: 10px; }
+    /* seated under the head plate by resize(), which knows how tall it came out */
+    #legend { top: 66px; right: 6px; left: auto; max-width: calc(100vw - 12px);
+      max-height: 50vh; }
+    #bar { left: 0; right: 0; bottom: 0; padding: 6px 8px 4px; border-width: 1px 0 0;
+      border-radius: 0; }
+    #row { gap: 6px; }
+    .spacer { display: none; }
+    button { min-height: 40px; padding: 6px 10px; }
+    #play { min-width: 0; }
+    #track { height: 34px; margin-top: 6px; }
+    #scrub { height: 26px; }
+    #scrub::-webkit-slider-runnable-track { height: 26px; }
+    #scrub::-webkit-slider-thumb { width: 18px; height: 26px; }
+    #rail, #fill { top: 11px; }
+    #ticks { top: 24px; }
+    #tip { max-width: calc(100vw - 24px); }
+    #crawl h2 { font-size: 24px; } #crawl p { font-size: 14px; }
+    #crawl .eyebrow { font-size: 12px; } #crawl .fine { font-size: 13px; }
+    #skip { right: 10px; bottom: 10px; padding: 10px 16px; } }
+  /* Narrower still: the two intermediate speeds go, 1x and 4x carry the range. */
+  @media (max-width: 480px) {
+    .sp[data-s="0.5"], .sp[data-s="2"] { display: none; } }
 </style>
 </head>
 <body>
@@ -898,7 +935,11 @@ HTML = r"""<!doctype html>
   <div class="sub">Verstreute Vorläufer, der Einschlag von DORA, ein System aus
     Rechtsakten — 2006 bis heute</div>
   <div id="clock">—</div>
-  <div id="counts">0 Knoten · 0 Kanten</div>
+  <div id="meta">
+    <span id="counts">0 Knoten · 0 Kanten</span>
+    <a id="repo" href="https://github.com/gnosifex/dora-graph" target="_blank"
+       rel="noopener" title="Daten, Code und Quellenliste">github.com/gnosifex/dora-graph</a>
+  </div>
 </div>
 
 <div class="panel" id="legend">
@@ -937,12 +978,7 @@ HTML = r"""<!doctype html>
       <button class="md on" data-m="prop">Proportional</button>
       <button class="md" data-m="compact">Kompakt</button>
     </div>
-    <div class="grp">
-      <button id="sound" title="Erzeugte Klangfläche ein-/ausschalten — iPhones geben bei aktivem seitlichem Stummschalter keinen Webton aus">♪ Ton</button>
-      <button id="intro-again" title="Vorspann erneut abspielen">Vorspann</button>
-      <a id="repo" href="https://github.com/gnosifex/dora-graph" target="_blank"
-         rel="noopener" title="Daten, Code und Quellenliste: github.com/gnosifex/dora-graph">Repo</a>
-    </div>
+    <button id="intro-again" title="Vorspann erneut abspielen">Vorspann</button>
   </div>
   <div id="track">
     <div id="rail"></div><div id="fill"></div>
@@ -992,7 +1028,7 @@ HTML = r"""<!doctype html>
                 "Juli","August","September","Oktober","November","Dezember"];
   // What the page remembers between visits — declared together and before anything
   // reads them, since the legend builds itself long before the opening sequence does.
-  var IKEY = "dora-graph.intro", SKEY = "dora-graph.sound", NKEY = "dora-graph.notes";
+  var IKEY = "dora-graph.intro", NKEY = "dora-graph.notes", LKEY = "dora-graph.legend";
 
   // How long the appearances take. The clock runs past this by TAIL, so the picture has
   // time to finish what the last appearance started.
@@ -1072,6 +1108,12 @@ HTML = r"""<!doctype html>
 
   var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
   var W = 0, H = 0, scale = 1, offX = 0, offY = 0, dpr = 1, rMaxPx = 12, legendOpen = true;
+  // Below this width the stylesheet lays the panels along the top and bottom edges and
+  // turns the legend into a folded overlay. The number is the one the media queries use.
+  var MOBILE_W = 720;
+  var headEl = document.getElementById("head"), barEl = document.getElementById("bar"),
+      legEl = document.getElementById("legend");
+  function narrow() { return window.innerWidth <= MOBILE_W; }
   function place() {
     var e = impactEase(), q, n, tx, ty, lx, ly, o;
     for (q = 0; q < nodes.length; q++) {
@@ -1090,17 +1132,35 @@ HTML = r"""<!doctype html>
       n.lsx = offX + (tx + lx) * scale; n.lsy = offY + (ty + ly) * scale;
     }
   }
+  // The panels are opaque, so the picture keeps clear of them — and the keep-out zones
+  // are measured off the panels themselves rather than assumed. Their size changes with
+  // the fold, with the type that wrapped and with the mobile layout, and a fixed column
+  // would either be covered by a panel or give away room the picture could have had.
+  // The legend is the one panel that can hand its column back: folded away on a desktop,
+  // and on a phone it is an overlay the graph never keeps room for.
+  function pads() {
+    var m = narrow(), side = m ? 8 : 30;
+    var h = headEl.getBoundingClientRect(), b = barEl.getBoundingClientRect();
+    var l = legEl.getBoundingClientRect();
+    return {
+      l: side,
+      r: (!m && legendOpen) ? Math.max(W - l.left + 8, side) : side,
+      t: Math.max(h.bottom + 8, 8),
+      b: Math.max(H - b.top + 8, 8)
+    };
+  }
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = cv.clientWidth; H = cv.clientHeight;
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // the panels are opaque, so the picture keeps clear of them; folding the legend
-    // away hands its column back to the graph
-    var padL = 30, padR = (W > 900 && legendOpen) ? 330 : 30, padT = 104, padB = 96;
-    var availW = Math.max(W - padL - padR, 120), availH = Math.max(H - padT - padB, 120);
+    // on a phone the legend hangs under the head plate, whatever height that came out at
+    legEl.style.top = narrow()
+      ? (Math.round(headEl.getBoundingClientRect().bottom) + 6) + "px" : "";
+    var p = pads();
+    var availW = Math.max(W - p.l - p.r, 120), availH = Math.max(H - p.t - p.b, 120);
     scale = Math.min(availW / DATA.extent[0], availH / DATA.extent[1]);
-    offX = padL + availW / 2; offY = padT + availH / 2;
+    offX = p.l + availW / 2; offY = p.t + availH / 2;
     rMaxPx = 1;
     for (var q = 0; q < nodes.length; q++) {
       var n = nodes[q];
@@ -1322,7 +1382,6 @@ HTML = r"""<!doctype html>
       if (tNow >= duration()) { tNow = duration(); setPlaying(false); }
       syncScrub();
     }
-    audioUpdate();
     draw(step(dt));
     requestAnimationFrame(frame);
   }
@@ -1424,12 +1483,21 @@ HTML = r"""<!doctype html>
       ul.appendChild(li);
     }
     var legend = document.getElementById("legend"), fold = document.getElementById("legfold");
+    function setLegend(open) {
+      legendOpen = open;
+      legend.className = open ? "panel" : "panel off";
+      fold.textContent = open ? "–" : "+";
+      fold.setAttribute("aria-expanded", open ? "true" : "false");
+    }
     fold.addEventListener("click", function () {
-      legendOpen = !legendOpen;
-      legend.className = legendOpen ? "panel" : "panel off";
-      fold.textContent = legendOpen ? "–" : "+";
+      setLegend(!legendOpen);
+      store(LKEY, legendOpen ? "1" : "0");
       resize();
     });
+    // On a narrow screen the legend would cover the picture it decodes, so it starts
+    // folded there and open everywhere else — a remembered choice beats both.
+    var legPref = stored(LKEY);
+    setLegend(legPref === null ? window.innerWidth > MOBILE_W : legPref === "1");
     // The reading notes are a second, inner fold, shut by default: the legend decodes
     // the picture, the notes qualify it, and only the first is needed to look at it.
     var note = document.getElementById("note"), nf = document.getElementById("notefold");
@@ -1446,15 +1514,18 @@ HTML = r"""<!doctype html>
 
   var tip = document.getElementById("tip");
   var tipT = tip.querySelector(".tt"), tipD = tip.querySelector(".td");
-  cv.addEventListener("mousemove", function (ev) {
+  function hideTip() { tip.style.display = "none"; }
+  // A finger is wider than a mouse pointer and covers what it points at, so a tap gets a
+  // larger catch radius and the tooltip is placed above the touch rather than beside it.
+  function showTip(cx, cy, touch) {
     var rect = cv.getBoundingClientRect();
-    var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-    var best = null, bd = 1e9, q, n, ex, ey, d2;
+    var mx = cx - rect.left, my = cy - rect.top;
+    var slop = touch ? 14 : 6, best = null, bd = 1e9, q, n, ex, ey, d2;
     for (q = 0; q < nodes.length; q++) {          // points first
       n = nodes[q];
       if (n.cont || !n.born || n.a < 0.3) continue;
       ex = n.x - mx; ey = n.y - my; d2 = ex * ex + ey * ey;
-      var lim = (n.r + 6) * (n.r + 6);
+      var lim = (n.r + slop) * (n.r + slop);
       if (d2 < lim && d2 < bd) { bd = d2; best = n; }
     }
     if (!best) {                                   // then container rings
@@ -1462,20 +1533,30 @@ HTML = r"""<!doctype html>
         n = nodes[q];
         if (!n.cont || !n.born || n.a < 0.3) continue;
         var dd = Math.abs(Math.sqrt((n.x - mx) * (n.x - mx) + (n.y - my) * (n.y - my)) - n.cr);
-        if (dd < 8 && dd < bd) { bd = dd; best = n; }
+        if (dd < slop + 2 && dd < bd) { bd = dd; best = n; }
       }
     }
-    if (best) {
-      tipT.textContent = best.t;
-      tipD.textContent = best.d + " · " + (LABEL[best.g] || best.g)
-        + (best.cont ? " · Rechtsakt" : "");
-      tip.style.display = "block";
-      var tw = tip.offsetWidth, th = tip.offsetHeight;
-      tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - tw - 10) + "px";
-      tip.style.top = Math.max(ev.clientY - th - 12, 8) + "px";
-    } else { tip.style.display = "none"; }
+    if (!best) { hideTip(); return false; }
+    tipT.textContent = best.t;
+    tipD.textContent = best.d + " · " + (LABEL[best.g] || best.g)
+      + (best.cont ? " · Rechtsakt" : "");
+    tip.style.display = "block";
+    var tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.max(Math.min(cx + (touch ? -tw / 2 : 14),
+                                       window.innerWidth - tw - 10), 10) + "px";
+    tip.style.top = Math.max(cy - th - (touch ? 22 : 12), 8) + "px";
+    return true;
+  }
+  cv.addEventListener("pointermove", function (ev) {
+    if (ev.pointerType === "touch") return;        // a touch has no hover to follow
+    showTip(ev.clientX, ev.clientY, false);
   });
-  cv.addEventListener("mouseleave", function () { tip.style.display = "none"; });
+  cv.addEventListener("pointerleave", hideTip);
+  // Touch: a tap on a body opens its tooltip, the next tap anywhere else closes it.
+  cv.addEventListener("pointerdown", function (ev) {
+    if (ev.pointerType !== "touch") return;
+    showTip(ev.clientX, ev.clientY, true);
+  });
 
   // -------------------------------------------------------------------------
   // Opening sequence. A text plane tilted away from the viewer travels toward the
@@ -1490,15 +1571,13 @@ HTML = r"""<!doctype html>
   var crawl = document.getElementById("crawl");
   var stars = document.getElementById("stars");
   var skipBtn = document.getElementById("skip");
-  var soundBtn = document.getElementById("sound");
   var introBtn = document.getElementById("intro-again");
   var introActive = false, introT = 0, introDist = 900, introLead = 160, hideTimer = 0;
 
   function store(k, v) { try { localStorage.setItem(k, v); } catch (e1) {} }
   function stored(k) { try { return localStorage.getItem(k); } catch (e2) { return null; } }
 
-  // A seeded generator: the star field is a fixed picture, the same on every visit,
-  // and the noise bed below is the same buffer every time it is built.
+  // A seeded generator: the star field is a fixed picture, the same on every visit.
   function seeded(a) {
     return function () {
       a = (a + 0x6D2B79F5) | 0;
@@ -1570,161 +1649,12 @@ HTML = r"""<!doctype html>
     if (introActive) introPlace(Math.min(introT / INTRO_DUR, 1));
   });
 
-  // -------------------------------------------------------------------------
-  // Sound. Off until the user asks for it, generated in the browser and never loaded.
-  //
-  // A harmonic stack on a 220 Hz fundamental — fifth, octave and twelfth above it, plus
-  // a quiet sub an octave below. The register is the point: a phone speaker radiates
-  // almost nothing under ~400 Hz, so the levels lean deliberately towards the top of
-  // the stack, where a handset actually has output, and the ear rebuilds the
-  // fundamental from those partials. The sub is a floor for speakers that have one,
-  // never a load-bearing part.
-  //
-  // Each partial breathes on its own very slow LFO — different rates AND different
-  // start phases, so they never swing together and the surface never repeats audibly.
-  // The detuning is a few cents per partial: enough to keep the stack from sounding
-  // computed, far too little to beat. No pitch ever changes, so there is nothing to
-  // follow — it is a surface, not a piece of music. The picture only moves level and
-  // filter: quiet under the opening, a swell with a breath of air where DORA lands,
-  // and a slow retreat as the timeline runs out.
-  // -------------------------------------------------------------------------
-  var soundOn = false, actx = null, master = null, lp = null, air = null;
-  var lastLevel = -1, lastCut = -1, lastAir = -1;
-  var MASTER_MAX = 0.14;
-  // frequency, detune (cents), level, breath depth, breath rate (Hz), breath phase
-  var VOICES = [
-    [110.0, 5, 0.09, 0.03, 0.023, 0.0],
-    [220.0, 0, 0.28, 0.10, 0.029, 1.9],
-    [330.0, -4, 0.24, 0.09, 0.037, 3.7],
-    [440.0, 7, 0.19, 0.06, 0.047, 5.1],
-    [660.0, -6, 0.15, 0.05, 0.061, 2.6]
-  ];
-  var SND_HINT = "Erzeugte Klangfläche ein-/ausschalten — iPhones geben bei aktivem "
-    + "seitlichem Stummschalter keinen Webton aus";
-  var SND_BLOCKED = "Der Browser hat die Tonausgabe nicht freigegeben";
-
-  function buildAudio() {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    try { actx = new AC(); } catch (e3) { return false; }
-    master = actx.createGain();
-    master.gain.value = 0.0001;
-    master.connect(actx.destination);
-    lp = actx.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 0.6;
-    lp.connect(master);
-    var k, v, o, g, l, d;
-    for (k = 0; k < VOICES.length; k++) {
-      v = VOICES[k];
-      o = actx.createOscillator();
-      o.type = "sine"; o.frequency.value = v[0]; o.detune.value = v[1];
-      g = actx.createGain(); g.gain.value = v[2];
-      o.connect(g); g.connect(lp); o.start();
-      // the breath: a sub-audio sine added onto this partial's level. Its start phase
-      // is baked into a one-harmonic PeriodicWave, so the five never move in lockstep.
-      l = actx.createOscillator();
-      l.frequency.value = v[4];
-      try {
-        l.setPeriodicWave(actx.createPeriodicWave(
-          new Float32Array([0, Math.cos(v[5])]), new Float32Array([0, Math.sin(v[5])])));
-      } catch (e4) { l.type = "sine"; }
-      d = actx.createGain(); d.gain.value = v[3];
-      l.connect(d); d.connect(g.gain); l.start();
-    }
-    // a bed of filtered noise: not heard on its own, it is what the filter sweep at the
-    // impact becomes audible through
-    var len = Math.floor(actx.sampleRate * 4);
-    var buf = actx.createBuffer(1, len, actx.sampleRate);
-    var ch = buf.getChannelData(0), rnd = seeded(1774), prev = 0, s;
-    for (s = 0; s < len; s++) {
-      prev = prev * 0.94 + (rnd() * 2 - 1) * 0.06;
-      ch[s] = prev * 3;
-    }
-    var src = actx.createBufferSource();
-    src.buffer = buf; src.loop = true;
-    var bp = actx.createBiquadFilter();
-    bp.type = "bandpass"; bp.frequency.value = 760; bp.Q.value = 0.5;
-    air = actx.createGain(); air.gain.value = 0.03;
-    src.connect(bp); bp.connect(air); air.connect(lp); src.start();
-    return true;
-  }
-
-  function audioUpdate() {
-    if (!soundOn || !actx || actx.state !== "running") return;
-    var lvl = introActive ? 0.34 : 0.62, cut = introActive ? 900 : 1400;
-    var puff = 0.03, p = progress();
-    if (!introActive) {
-      var u = impactRaw();
-      if (u > 0 && u < 2.2) {
-        var b = Math.sin(Math.PI * (u * 0.4545));
-        lvl += 0.38 * b; cut += 2200 * b; puff += 0.09 * b;
-      }
-      if (p > 0.94) {
-        var f = (1 - p) * 16.6667;
-        lvl *= 0.25 + 0.75 * f; cut = 600 + (cut - 600) * f;
-      }
-    }
-    if (Math.abs(lvl - lastLevel) > 0.004) {
-      lastLevel = lvl;
-      master.gain.setTargetAtTime(Math.max(lvl * MASTER_MAX, 0.0001), actx.currentTime, 0.35);
-    }
-    if (Math.abs(cut - lastCut) > 12) {
-      lastCut = cut;
-      lp.frequency.setTargetAtTime(cut, actx.currentTime, 0.45);
-    }
-    if (Math.abs(puff - lastAir) > 0.004) {
-      lastAir = puff;
-      air.gain.setTargetAtTime(puff, actx.currentTime, 0.5);
-    }
-  }
-
-  function soundState(on, hint) {
-    soundOn = on;
-    soundBtn.className = on ? "on" : "";
-    soundBtn.title = hint;
-    store(SKEY, on ? "1" : "0");
-    lastLevel = -1; lastCut = -1; lastAir = -1;
-  }
-
-  function setSound(on) {
-    if (!on) {
-      soundState(false, SND_HINT);
-      if (!actx) return;
-      master.gain.setTargetAtTime(0.0001, actx.currentTime, 0.25);
-      setTimeout(function () { if (!soundOn && actx && actx.suspend) actx.suspend(); }, 1400);
-      return;
-    }
-    if (!actx && !buildAudio()) { soundState(false, SND_BLOCKED); return; }
-    // iOS hands out a suspended context and only starts it inside the gesture, so the
-    // switch reports what the context actually does rather than what was asked for
-    var settle = function () {
-      if (actx.state === "running") soundState(true, SND_HINT);
-      else soundState(false, SND_BLOCKED);
-    };
-    var r = null;
-    try { r = actx.resume ? actx.resume() : null; } catch (e5) { r = null; }
-    if (r && r.then) r.then(settle, settle); else settle();
-  }
-  soundBtn.addEventListener("click", function () { setSound(!soundOn); });
-  soundBtn.title = SND_HINT;
-  if (reduce) { soundBtn.disabled = true; soundBtn.title = "Bei reduzierter Bewegung aus"; }
-
   resize(); buildTicks(); syncScrub();
   if (stored(IKEY) === "1" || reduce) {
     intro.style.display = "none";
     setPlaying(true);
   } else {
     startIntro();
-  }
-  // A remembered "on" still waits for a gesture — browsers do not allow sound before one.
-  if (!reduce && stored(SKEY) === "1") {
-    var arm = function () {
-      document.removeEventListener("pointerdown", arm);
-      document.removeEventListener("keydown", arm);
-      setSound(true);
-    };
-    document.addEventListener("pointerdown", arm);
-    document.addEventListener("keydown", arm);
   }
   requestAnimationFrame(frame);
 })();
@@ -2750,10 +2680,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     unit_radii = sorted({round(radii[i], 3) for i in unit_idx})
 
-    # what the JS fit makes of the extent on a common desktop viewport
-    def fit_at(vw: float, vh: float, legend: bool) -> dict:
-        avail_w = max(vw - 30 - (330 if legend else 30), 120)
-        avail_h = max(vh - 104 - 96, 120)
+    # What the JS fit makes of the extent. The page measures its own panels, so the pads
+    # passed here are what those measurements come out at on each reference viewport:
+    # left, right, top, bottom. On a phone the panels take the full width at top and
+    # bottom and the legend is a folded overlay, so only the strip between them is fitted.
+    def fit_at(vw: float, vh: float, pads: tuple[float, float, float, float]) -> dict:
+        pl, pr, pt, pb = pads
+        avail_w = max(vw - pl - pr, 120)
+        avail_h = max(vh - pt - pb, 120)
         s = min(avail_w / ext_w, avail_h / ext_h)
         return {"skalierung": round(s, 3),
                 "bild_px": [round(ext_w * s), round(ext_h * s)],
@@ -2807,8 +2741,9 @@ def main(argv: list[str] | None = None) -> int:
             "ueberlappungen_durch_stauchung": ov_squeeze,
             "ueberlappungen_nach_ausgleich": ov_stretch,
             "extent": [round(ext_w, 1), round(ext_h, 1)],
-            "1600x1000_legende_offen": fit_at(1600, 1000, True),
-            "1600x1000_legende_zu": fit_at(1600, 1000, False),
+            "1600x1000_legende_offen": fit_at(1600, 1000, (30, 328, 128, 95)),
+            "1600x1000_legende_zu": fit_at(1600, 1000, (30, 30, 128, 95)),
+            "375x812_telefon": fit_at(375, 812, (8, 8, 68, 144)),
         },
         "radius": rstats,
         "container_radien": [{"akt": n, "r": round(r, 1), "einheiten": m} for r, n, m in cr_sorted],

@@ -1,6 +1,6 @@
 # dora-graph
 
-**English summary.** An animated map of the EU DORA regulation (Regulation (EU) 2022/2554) and the documents around it: the regulation and its articles, the delegated and implementing acts, supervisory guidelines, ESA Q&As, preparatory final reports, German supervisory circulars and the referenced standards. Nodes are coloured by how binding a source is, sized indicatively, and placed on the timeline by when the instrument first appeared. **It is a schematic, indicative picture — not to scale and not complete.** This repository holds the generator code, the graph metadata with links to the publishers' originals, and the built page. It mirrors no legal text. Unofficial, not legal advice, not affiliated with the ESAs, BaFin or the EU.
+**English summary.** An animated map of the EU DORA regulation (Regulation (EU) 2022/2554) and the documents around it: the regulation and its articles, the delegated and implementing acts, supervisory guidelines, ESA Q&As, preparatory final reports, German supervisory circulars and the referenced standards. Nodes are coloured by how binding a source is, sized indicatively, and placed on the timeline by when the instrument first appeared. **It is a schematic, indicative picture — not to scale and not complete — drawn from the vantage point of a German credit institution:** the national layer shows BaFin, KWG, MaRisk and BAIT, not other member states' supervisors. This repository holds the generator code, the graph metadata with links to the publishers' originals, and the built page. It mirrors no legal text. Unofficial, not legal advice, not affiliated with the ESAs, BaFin or the EU.
 
 **Live:** [Die Geburt einer Regulatorik-Galaxie](https://gnosifex.github.io/dora-graph/)
 
@@ -12,7 +12,7 @@
 
 Die DORA-Regulatorik ist kein Dokument, sondern ein Geflecht: Die Verordnung verweist auf sich selbst und auf fremdes Recht, zwölf delegierte und Durchführungsverordnungen konkretisieren einzelne Artikel, Leitlinien und Q&As legen aus, Final Reports gehen den Rechtsakten voraus, nationale Rundschreiben und externe Standards hängen daran. Diese Seite zeigt das Geflecht als Graph und spielt seine Entstehung als Zeitraffer ab.
 
-**Die Darstellung ist indikativ und schematisch.** Sie zeigt Struktur und Abfolge — nicht Maßstab, nicht Vollständigkeit. Weder die Größen noch die Zeitpunkte taugen als Messwerte; beide sind Näherungen, die das Bild lesbar machen sollen. Und sie umfasst genau das, was bei der Analyse des Korpus einen Bezug zu DORA erkennen ließ: nicht den Rechtsbestand, sondern seinen DORA-Ausschnitt.
+**Die Darstellung ist indikativ und schematisch.** Sie zeigt Struktur und Abfolge — nicht Maßstab, nicht Vollständigkeit. Weder die Größen noch die Zeitpunkte taugen als Messwerte; beide sind Näherungen, die das Bild lesbar machen sollen. Und sie umfasst genau das, was bei der Analyse des Korpus einen Bezug zu DORA erkennen ließ: nicht den Rechtsbestand, sondern seinen DORA-Ausschnitt — gesehen aus der Perspektive eines deutschen Kreditinstituts. Die nationale Ebene sind deshalb BaFin, KWG, MaRisk und BAIT; andere Mitgliedstaaten und Sektoren bleiben außen vor.
 
 ## Wie das Bild zu lesen ist
 
