@@ -828,12 +828,38 @@ HTML = r"""<!doctype html>
     line-height: 1.5; }
   #legend .caveat { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
     color: var(--fg); font-size: 11px; }
-  #legend .ring { display:inline-block; width:12px; height:12px; border-radius:50%;
-    border:1.4px solid #8f9bb0; background:rgba(143,155,176,.18); vertical-align:-2px; }
-  #legend .dash { display:inline-block; width:12px; height:12px; border-radius:50%;
-    border:1.4px dashed #8f9bb0; vertical-align:-2px; }
-  #legend .sup { display:inline-block; width:12px; height:0; vertical-align:3px;
-    border-top:1.6px dashed #B3392F; }
+  /* The glyphs are the picture's own strokes, so no row has to be translated: every
+     dash pattern below is the setLineDash array the canvas uses for that element, and
+     the grey stands in for a rank colour as the picture shows it. Act rings are 1.4 px
+     over a fill of .21 of that (the canvas draws .13 under a .62 stroke); the dashed
+     ring and the dashed dot carry 4.5/3.5 and 3.2/2.8, laid on the circle as whole
+     cycles so the pattern closes; reference edges are 1 px in the canvas colour, lifted
+     from the .22 a single stroke carries because one 20-px glyph has none of the
+     overlap that makes that web visible; supersession is 1.5 px #B3392F, dashed 6/4 at
+     .85 and dotted 2.5/5 at .55. */
+  #legend .key div { display: flex; align-items: center; gap: 7px; padding: 1px 0; }
+  #legend .g { flex: 0 0 20px; height: 12px; position: relative; }
+  #legend .g::before, #legend .g::after { content: ""; position: absolute; }
+  #legend .ring::before { left: 0; top: 0; width: 12px; height: 12px; box-sizing: border-box;
+    border-radius: 50%; border: 1.4px solid #8f9bb0; background: rgba(143,155,176,.21); }
+  #legend .est::before { left: 0; top: 0; width: 12px; height: 12px; border-radius: 50%;
+    background: repeating-conic-gradient(#8f9bb0 0 50.6deg, rgba(143,155,176,0) 50.6deg 90deg);
+    -webkit-mask: radial-gradient(circle, rgba(0,0,0,0) 4.6px, #000 4.6px);
+    mask: radial-gradient(circle, rgba(0,0,0,0) 4.6px, #000 4.6px); }
+  #legend .est::after { right: 0; top: 3px; width: 6px; height: 6px; border-radius: 50%;
+    background: repeating-conic-gradient(#8f9bb0 0 64deg, rgba(143,155,176,0) 64deg 120deg);
+    -webkit-mask: radial-gradient(circle, rgba(0,0,0,0) 1.5px, #000 1.5px);
+    mask: radial-gradient(circle, rgba(0,0,0,0) 1.5px, #000 1.5px); }
+  #legend .dot::before { left: 3.5px; top: 3.5px; width: 5px; height: 5px;
+    border-radius: 50%; background: #8f9bb0; }
+  #legend .ref::before { left: 0; top: 5.5px; width: 20px; height: 1px;
+    background: rgba(150,170,205,.55); }
+  #legend .sup-full::before { left: 0; top: 5.2px; width: 20px; height: 1.5px;
+    background: repeating-linear-gradient(90deg,
+      rgba(179,57,47,.85) 0 6px, rgba(179,57,47,0) 6px 10px); }
+  #legend .sup-part::before { left: 0; top: 5.2px; width: 20px; height: 1.5px;
+    background: repeating-linear-gradient(90deg,
+      rgba(179,57,47,.55) 0 2.5px, rgba(179,57,47,0) 2.5px 7.5px); }
   #bar { left: 14px; right: 14px; bottom: 14px; padding: 8px 12px 6px; }
   #row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   button { background: rgba(255,255,255,.07); color: var(--fg); border: 1px solid var(--line);
@@ -946,10 +972,12 @@ HTML = r"""<!doctype html>
   <h2>Quellenhierarchie <button id="legfold" title="Legende ein-/ausklappen">–</button></h2>
   <ul id="legend-list" title="Klick auf eine Zeile hebt diesen Rang hervor, ein zweiter Klick hebt es auf"></ul>
   <div class="key">
-    Warm = verbindlich, kühl = unverbindlich.<br>
-    <span class="ring"></span> Kreis = Rechtsakt, Punkte darin seine Artikel<br>
-    <span class="dash"></span> Gestrichelt: Umfang geschätzt<br>
-    <span class="sup"></span> Rot: von DORA verdrängt
+    <div><span class="g ring"></span>Rechtsakt; die Punkte darin seine Artikel</div>
+    <div><span class="g est"></span>nur referenziert: Ausschnitt im Korpus, Umfang geschätzt</div>
+    <div><span class="g dot"></span>eigenständiges Dokument (Leitlinie, Report, Q&amp;A, Aufsichtsseite)</div>
+    <div><span class="g ref"></span>Verweis/Bezug</div>
+    <div><span class="g sup-full"></span>von DORA vollständig verdrängt</div>
+    <div><span class="g sup-part"></span>teilweise verdrängt</div>
   </div>
   <button id="notefold" aria-expanded="false" aria-controls="note">Hinweise zur Lesart
     <span class="caret">▸</span></button>
@@ -957,7 +985,8 @@ HTML = r"""<!doctype html>
     Größe: bei Dokumenten der Textumfang, bei einem Rechtsakt die Zahl seiner
     gespiegelten Einheiten — CRR und CRD wirken deshalb klein.<br>
     Zeitpunkt: Erstfassung des Instruments, indikativ eingeordnet.<br>
-    Gestrichelt heißt hochgerechnet; rot gepunktet heißt nur teilweise verdrängt.<br>
+    Gestrichelt heißt: nur referenziert, darum hochgerechnet; rot gepunktet
+    heißt nur teilweise verdrängt.<br>
     Gezeigt wird der DORA-Ausschnitt des Korpus, nicht der Rechtsbestand.
   </div>
   <div class="caveat">Indikativ und schematisch. Keine Rechtsberatung.</div>
@@ -993,20 +1022,21 @@ HTML = r"""<!doctype html>
     <div id="crawl">
       <p class="eyebrow">Ein Blick auf die digitale operationale Resilienz</p>
       <h2>Die Geburt einer Regulatorik-Galaxie</h2>
-      <p>Lange bevor DORA geschrieben wurde, kreisten die Vorläufer bereits: das
-        Kreditwesengesetz, die Mindestanforderungen an das Risikomanagement, die
-        bankaufsichtlichen Anforderungen an die IT — dazu ein Gürtel technischer Normen,
-        an denen sich die Praxis ausrichtete.</p>
+      <p>Die Vorläufer kreisten längst: das Kreditwesengesetz, die europäischen
+        Banken-Richtlinien und -Verordnungen, die Mindestanforderungen an das
+        Risikomanagement, die bankaufsichtlichen Anforderungen an die IT — dazu ein
+        Gürtel technischer Normen, an denen sich die Praxis ausrichtete.</p>
       <p>Im Dezember 2022 schlägt die Verordnung (EU) 2022/2554 in diese Ordnung ein.
-        Sie bindet, was verstreut war, verdrängt, was sie ersetzt, und zieht einen Hof
+        Sie bündelt, was verstreut war, verdrängt, was sie ersetzt, und zieht einen Hof
         aus technischen Regulierungsstandards, Leitlinien, Auslegungshilfen und
         Aufsichtsmitteilungen hinter sich her.</p>
-      <p>Was nun folgt, ist dieser Vorgang als Zeitraffer: von 2006 bis heute, gefärbt
-        nach Verbindlichkeit — warm für bindendes Recht, kühl für unverbindliche
-        Auslegung.</p>
-      <p class="fine">Die Darstellung ist indikativ und schematisch. Größen und
-        Zeitpunkte sind Näherungen, keine Messwerte; gezeigt wird allein der Ausschnitt
-        mit Bezug zu DORA. Keine Rechtsberatung.</p>
+      <p>Was nun folgt, ist dieser Vorgang als Zeitraffer: von 2006 bis heute — Älteres
+        ist als Bestand von Beginn an da —, gefärbt nach Verbindlichkeit: warm für
+        bindendes Recht, kühl für unverbindliche Auslegung.</p>
+      <p class="fine">Die Darstellung ist indikativ und schematisch, gesehen aus der
+        Perspektive eines deutschen Kreditinstituts. Größen und Zeitpunkte sind
+        Näherungen, keine Messwerte; gezeigt wird allein der DORA-Ausschnitt des
+        Korpus. Keine Rechtsberatung.</p>
     </div>
   </div>
   <button id="skip" title="Vorspann überspringen (Esc, Leertaste oder Klick)">Überspringen</button>
@@ -1683,18 +1713,15 @@ SVG_MARGIN = 16.0                    # clear space between the frame and anythin
 SVG_CROP = 14.0                      # the narrow border the finished viewBox keeps
 SVG_BG = "#0b0e14"
 SVG_FG, SVG_DIM = "#e8edf6", "#8f9bb0"
-SVG_PANEL, SVG_PANEL_A = "#121721", "0.9"
-SVG_BORDER, SVG_BORDER_A = "#ffffff", "0.12"
 SVG_EDGE = "#96aacd"                 # the page's rgba(150,170,205,.22)
 SVG_SUPER = "#b3392f"                # the page's rgba(179,57,47,…)
 SVG_FONT = ("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, "
             "Arial, sans-serif")
-SVG_LEGEND_W = 330.0
 
 # Label seating for the still. The page can let a label graze a dot — the dot moves, and
 # the reader can hover it; a frozen frame cannot, so the preview seats the act labels
-# itself: clear of every other label, of every circle (its own ring included) and of the
-# two panels, with a dark outline carrying the text over the edges underneath.
+# itself: clear of every other label and of every circle, its own ring included, with a
+# dark outline carrying the text over the edges underneath.
 LBL_RING_GAP = 5.0                   # from the ring the label belongs to
 LBL_LABEL_PAD = 3.5                  # between two labels
 LBL_NODE_PAD = 2.5                   # from any circle the label is not attached to
@@ -1711,17 +1738,6 @@ LBL_LEADER = 15.0                    # beyond this gap a label is tied back to i
 SVG_TITLE = "Die Geburt einer Regulatorik-Galaxie"
 SVG_SUB = ("DORA, seine Vorläufer und sein Folgerecht — indikative, schematische "
            "Darstellung")
-SVG_LEGEND_HEAD = "Quellenhierarchie"
-SVG_NOTES = (
-    "Warm = hohe Verbindlichkeit, kühl = niedrige.",
-    "Ein Kreis ist ein Rechtsakt; die Punkte darin sind seine Artikel, Anhänge "
-    "und Paragrafen.",
-    "Gestrichelter Rand: Umfang geschätzt. Rote Linie: von DORA verdrängt — "
-    "gestrichelt ganz, gepunktet teilweise.",
-    "Größen und Zeitpunkte sind Näherungen, keine Messwerte. Keine Rechtsberatung.",
-    "github.com/gnosifex/dora-graph",
-)
-
 # The social preview card. GitHub asks for 1280 x 640 and keeps a 40 pt guard around
 # anything that matters, because some places crop the card — at this pixel size that is
 # 80 px per edge. Edges and single dots may run into the guard, since losing one costs
@@ -1811,13 +1827,6 @@ def svg_text(x: float, y: float, text: str, fs: float, fill: str, *,
     return (f'<text x="{svg_num(x)}" y="{svg_num(y)}" font-family="{SVG_FONT}" '
             f'font-size="{svg_num(fs)}" font-weight="{weight}" fill="{fill}"{ring} '
             f'text-anchor="{anchor}">{svg_escape(text)}</text>')
-
-
-def svg_panel(x: float, y: float, w: float, h: float) -> str:
-    return (f'<rect x="{svg_num(x)}" y="{svg_num(y)}" width="{svg_num(w)}" '
-            f'height="{svg_num(h)}" rx="12" fill="{SVG_PANEL}" '
-            f'fill-opacity="{SVG_PANEL_A}" stroke="{SVG_BORDER}" '
-            f'stroke-opacity="{SVG_BORDER_A}" stroke-width="1"/>')
 
 
 def boxes_overlap(a, b, pad: float = 0.0) -> bool:
@@ -2144,35 +2153,20 @@ def render_preview(payload: dict) -> tuple[str, dict]:
     Geometry, palette and z-order follow the canvas renderer exactly — edges first,
     then the act circles, then the dots, then the labels — so the file reads as the
     page's last frame rather than as a second, differently-shaped drawing.
+
+    The still carries no chrome at all: it is read inside the README, which names the
+    picture and prints the rank legend right beside it, so a title plate and a legend
+    panel would only say the same thing twice and take the room away from the graph.
+    What the file owes a reader on its own it carries in <title> and <desc>.
     """
     nodes, edges = payload["nodes"], payload["edges"]
     colour = {p[0]: p[1] for p in payload["palette"]}
     ext_w, ext_h = payload["extent"]
 
-    # --- the two panels, measured before anything is placed: their boxes are what the
-    # picture has to fit around
-    t_fs, s_fs, t_pad = 30.0, 16.0, 16.0
-    t_w = 2 * t_pad + max(text_width(SVG_TITLE, t_fs), text_width(SVG_SUB, s_fs))
-    t_h = 2 * t_pad + t_fs * 1.06 + 6.0 + s_fs * 1.2
-    title_box = (SVG_MARGIN, SVG_MARGIN, SVG_MARGIN + t_w, SVG_MARGIN + t_h)
-
-    l_pad, sw, gap = 16.0, 15.0, 10.0
-    row_fs, note_fs, head_fs, lead = 14.5, 13.0, 14.0, 18.0
-    row_w = SVG_LEGEND_W - 2 * l_pad - sw - gap
-    note_w = SVG_LEGEND_W - 2 * l_pad
-    rows = [(p[1], wrap_text(p[2], row_fs, row_w)) for p in payload["palette"]]
-    notes = [wrap_text(t, note_fs, note_w) for t in SVG_NOTES]
-    # heading + rank rows + the divider block + the notes; the last note's trailing gap
-    # is eaten by the bottom padding, hence the -5
-    l_h = (l_pad + head_fs * 1.5 + 8.0
-           + sum(lead * len(t) + 6.0 for _, t in rows)
-           + 12.0 + sum(lead * len(t) + 5.0 for t in notes) + l_pad - 5.0)
-    l_x = SVG_W - SVG_MARGIN - SVG_LEGEND_W
-    legend_box = (l_x, SVG_MARGIN, l_x + SVG_LEGEND_W, SVG_MARGIN + l_h)
-    panels = (title_box, legend_box)
+    panels: tuple = ()
     frame = (SVG_MARGIN, SVG_MARGIN, SVG_W - SVG_MARGIN, SVG_H - SVG_MARGIN)
 
-    # --- fit the picture around the panels rather than beside them
+    # --- fit the picture into the whole frame
     graph_circles = [(n["x"], n["y"], n["cr"] if n.get("k") else n["r"]) for n in nodes]
     seats = []
     for n in nodes:
@@ -2204,45 +2198,11 @@ def render_preview(payload: dict) -> tuple[str, dict]:
                          obstacles, panels, frame, label_fs)
     labels, halos, leaders = draw_labels(seated, spots, texts, cols, label_fs)
 
-    # --- the title panel, top left
-    chrome = [svg_panel(*title_box[:2], t_w, t_h),
-              svg_text(SVG_MARGIN + t_pad, SVG_MARGIN + t_pad + t_fs * 0.82,
-                       SVG_TITLE, t_fs, SVG_FG, weight="700"),
-              svg_text(SVG_MARGIN + t_pad, SVG_MARGIN + t_pad + t_fs * 1.06 + 6.0 + s_fs * 0.9,
-                       SVG_SUB, s_fs, SVG_DIM)]
-
-    # --- the legend, right margin: a swatch per rank, then the reading notes. A README
-    # shows the file at roughly half its nominal width, so this is set larger than the
-    # page's 11 px — the ranks are the one thing a still has to carry on its own.
-    chrome.append(svg_panel(l_x, SVG_MARGIN, SVG_LEGEND_W, l_h))
-    y = SVG_MARGIN + l_pad + head_fs * 0.85
-    chrome.append(svg_text(l_x + l_pad, y, SVG_LEGEND_HEAD, head_fs, SVG_DIM, weight="600"))
-    y += head_fs * 0.7 + 8.0
-    for col, lines in rows:
-        chrome.append(
-            f'<rect x="{svg_num(l_x + l_pad)}" y="{svg_num(y + 1.0)}" '
-            f'width="{svg_num(sw)}" height="{svg_num(sw)}" rx="3.5" fill="{col}"/>')
-        for k, line in enumerate(lines):
-            chrome.append(svg_text(l_x + l_pad + sw + gap, y + row_fs * 0.82 + k * lead,
-                                   line, row_fs, SVG_FG))
-        y += lead * len(lines) + 6.0
-    y += 6.0
-    chrome.append(
-        f'<path d="M{svg_num(l_x + l_pad)} {svg_num(y)}H{svg_num(l_x + SVG_LEGEND_W - l_pad)}" '
-        f'stroke="{SVG_BORDER}" stroke-opacity="{SVG_BORDER_A}" stroke-width="1"/>')
-    y += 6.0
-    for lines in notes:
-        for k, line in enumerate(lines):
-            chrome.append(svg_text(l_x + l_pad, y + note_fs * 0.82 + k * lead,
-                                   line, note_fs, SVG_DIM))
-        y += lead * len(lines) + 5.0
-
-    # --- crop to what was actually drawn: circles with their radius, label boxes, the
-    # two panels. The frame above is only a working surface; this is the picture.
+    # --- crop to what was actually drawn: circles with their radius and label boxes.
+    # The frame above is only a working surface; this is the picture.
     drawn = [(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1) for cx, cy, r in obstacles]
     drawn += [(b[0] - LBL_HALO, b[1] - LBL_HALO, b[2] + LBL_HALO, b[3] + LBL_HALO)
               for _, _, b in seated.values()]
-    drawn += list(panels)
     vx = min(b[0] for b in drawn) - SVG_CROP
     vy = min(b[1] for b in drawn) - SVG_CROP
     vw = max(b[2] for b in drawn) + SVG_CROP - vx
@@ -2258,7 +2218,6 @@ def render_preview(payload: dict) -> tuple[str, dict]:
         '</g>',
         '<g id="beschriftung-halo">', *halos, '</g>',
         '<g id="beschriftung">', *labels, '</g>',
-        '<g id="rahmen">', *chrome, '</g>',
         '</svg>',
         '',
     ])
@@ -2268,7 +2227,6 @@ def render_preview(payload: dict) -> tuple[str, dict]:
     clashes = sum(1 for a in range(len(boxes) - 1) for b in range(a + 1, len(boxes))
                   if boxes_overlap(boxes[a], boxes[b]))
     on_nodes = sum(1 for b in boxes for c in obstacles if box_hits_circle(b, *c))
-    on_panels = sum(1 for b in boxes for p in panels if boxes_overlap(b, p))
     home = sum(1 for i, (lx, ly, _) in seated.items()
                if abs(lx - spots[i][0]) < 0.01 and ly < spots[i][1])
     label_cols = {colour.get(n["g"], "#8a8f98") for n in nodes if n.get("k")}
@@ -2287,16 +2245,13 @@ def render_preview(payload: dict) -> tuple[str, dict]:
             "beschriftungen": len(labels),
             "halos": len(halos),
             "anbindungen": len(leaders),
-            "rahmen": len(chrome),
         },
         "verdraengungspfade": len(edge_parts) - 1,
         "beschriftung": {
             "ueber_dem_kreis": f"{home}/{len(boxes)}",
             "ueberlappt_label": clashes,
             "ueberlappt_knoten": on_nodes,
-            "ueberlappt_panel": on_panels,
         },
-        "legende_hoehe": round(l_h, 1),
         "kontrast_gegen_grund": contrasts,
         "min_kontrast": round(min(contrasts.values()), 2),
     }

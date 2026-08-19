@@ -15,8 +15,10 @@ Five families of checks:
   * the two still images, docs/preview.svg and docs/social-card.svg: well-formed XML,
                 one circle per graph node, nothing that a host would strip or refuse to
                 fetch, and a readability pass — nothing outside the frame, no label
-                sitting on a circle or under the chrome, enough contrast against the
-                painted ground; the card additionally holds GitHub's 40 pt guard
+                sitting on a circle, enough contrast against the painted ground. The
+                preview carries no chrome at all, since the README frames it; the card
+                stands alone when it is shared, so it keeps its title and colour key
+                and additionally holds GitHub's 40 pt guard
 
 Exits non-zero as soon as one check fails.
 """
@@ -24,6 +26,7 @@ Exits non-zero as soon as one check fails.
 from __future__ import annotations
 
 import argparse
+import html as html_mod
 import json
 import math
 import re
@@ -266,10 +269,17 @@ def check_opening(html: str, js: str) -> None:
                  'id="skip"', 'id="intro-again"'):
         ok(frag in html, f"markup present: {frag}")
     ok("perspective:" in html and "rotateX(" in html, "text plane runs back in perspective")
-    body = html.split('id="crawl"', 1)[-1].split("</div>", 1)[0]
+    # one flat line, so a sentence the source wraps is still one string to look for
+    body = " ".join(html.split('id="crawl"', 1)[-1].split("</div>", 1)[0].split())
+    # The last two are substance, not decoration: the timeline opens in 2006 with the
+    # European banking layer, so the stock the opening names has to include it; and the
+    # whole selection is made from one vantage point, which the reader is owed up front
+    # rather than in the README.
     for line in ("Ein Blick auf die digitale operationale Resilienz",
                  "Die Geburt einer Regulatorik-Galaxie",
-                 "Keine Rechtsberatung."):
+                 "Keine Rechtsberatung.",
+                 "die europäischen Banken-Richtlinien",
+                 "Perspektive eines deutschen Kreditinstituts"):
         ok(line in body, f"crawl carries: {line[:44]}")
     for name in ("function startIntro", "function finishIntro", "function introStep",
                  "function introLayout", "function drawStars", "function seeded"):
@@ -293,8 +303,9 @@ def check_opening(html: str, js: str) -> None:
 
 def prose(fragment: str) -> str:
     """The running text a reader actually faces: markup, the rank rows the legend is
-    built from, and their counts are not prose and are not counted as such."""
-    txt = re.sub(r"<[^>]+>", " ", fragment)
+    built from, and their counts are not prose and are not counted as such. Entities
+    are resolved, because a reader sees the character, not the escape."""
+    txt = html_mod.unescape(re.sub(r"<[^>]+>", " ", fragment))
     return " ".join(txt.split())
 
 
@@ -321,7 +332,103 @@ def check_head(html: str) -> None:
     ok('id="repo"' not in bar, "the bar no longer carries a repo button")
 
 
-def check_legend(html: str) -> None:
+# The symbol rows, in the order the panel has to run them: areas, then points, then
+# lines. Each row is a glyph class and the caption that names what that stroke is.
+LEGEND_ROWS = [
+    ("ring", "Rechtsakt; die Punkte darin seine Artikel"),
+    ("est", "nur referenziert: Ausschnitt im Korpus, Umfang geschätzt"),
+    ("dot", "eigenständiges Dokument (Leitlinie, Report, Q&A, Aufsichtsseite)"),
+    ("ref", "Verweis/Bezug"),
+    ("sup-full", "von DORA vollständig verdrängt"),
+    ("sup-part", "teilweise verdrängt"),
+]
+
+# Glyph geometry the stylesheet fixes and the canvas has no say in: how many whole dash
+# cycles are laid around each of the two rings, so the pattern closes instead of showing
+# a seam. Everything else about the glyphs is derived from the canvas parameters.
+GLYPH_RING_CYCLE, GLYPH_DOT_CYCLE = 90.0, 120.0
+
+
+def css_rule(sheet: str, selector: str) -> str:
+    """One declaration block, whitespace normalised, so a wrapped rule reads as one line."""
+    m = re.search(re.escape(selector) + r"(?![-\w])\s*\{(.*?)\}", sheet, re.S)
+    return " ".join(m.group(1).split()) if m else ""
+
+
+def css_alpha(a: float) -> str:
+    return f"{a:g}".lstrip("0") or "0"
+
+
+def canvas_strokes(js: str) -> dict:
+    """What the renderer actually draws, read out of the script.
+
+    The legend claims to show the picture's own strokes, so the glyph patterns are
+    checked against these numbers rather than against themselves.
+    """
+    out: dict = {}
+    m = re.search(r"setLineDash\(full \? \[([\d.]+) \* scale, ([\d.]+) \* scale\] : "
+                  r"\[([\d.]+) \* scale, ([\d.]+) \* scale\]\)", js)
+    if m:
+        out["sup_full"] = (float(m.group(1)), float(m.group(2)))
+        out["sup_part"] = (float(m.group(3)), float(m.group(4)))
+    m = re.search(r'"rgba\((\d+,\d+,\d+)," \+ \(S\[2\] \* \(full \? ([\d.]+) : ([\d.]+)\)\)', js)
+    if m:
+        out["sup_colour"] = m.group(1)
+        out["sup_alpha"] = (float(m.group(2)), float(m.group(3)))
+    m = re.search(r'"rgba\((\d+,\d+,\d+)," \+ \(al \* [\d.]+\)', js)
+    if m:
+        out["ref_colour"] = m.group(1)
+    m = re.search(r"if \(n\.partial\) ctx\.setLineDash\(\[([\d.]+) \* scale, "
+                  r"([\d.]+) \* scale\]\)", js)
+    if m:
+        out["ring_est"] = (float(m.group(1)), float(m.group(2)))
+    m = re.search(r"setLineDash\(\[([\d.]+) \* scale, ([\d.]+) \* scale\]\)",
+                  js.split("// 4) point nodes", 1)[-1])
+    if m:
+        out["dot_est"] = (float(m.group(1)), float(m.group(2)))
+    return out
+
+
+def check_glyphs(html: str, js: str) -> None:
+    """Every glyph in the legend repeats the stroke the canvas draws for that element.
+
+    The point is that nothing has to be translated: what the reader sees in the panel is
+    the same pattern, at the same ratio, as the thing it names in the picture. So the
+    dash arrays and colours are lifted out of the renderer and then looked for in the
+    stylesheet — a glyph that drifts away from the canvas fails here.
+    """
+    print("\n== legend glyphs repeat the canvas strokes")
+    s = canvas_strokes(js)
+    ok(len(s) == 7, "the canvas stroke parameters are all readable", ", ".join(sorted(s)))
+    if len(s) != 7:
+        return
+
+    lines = [(".sup-full", *s["sup_full"], s["sup_colour"], s["sup_alpha"][0], "6/4 dashed"),
+             (".sup-part", *s["sup_part"], s["sup_colour"], s["sup_alpha"][1], "2.5/5 dotted")]
+    for sel, on, off, col, alpha, what in lines:
+        rule = css_rule(html, "#legend " + sel + "::before")
+        want = (f"rgba({col},{css_alpha(alpha)}) 0 {on:g}px, "
+                f"rgba({col},0) {on:g}px {on + off:g}px")
+        ok(want in rule, f"{sel}: the supersession glyph is the canvas' {what} line", want)
+
+    rule = css_rule(html, "#legend .ref::before")
+    ok(f"rgba({s['ref_colour']}," in rule and "height: 1px" in rule,
+       ".ref: the reference glyph is the canvas' 1 px line in its own colour",
+       s["ref_colour"])
+
+    rings = [(".est::before", *s["ring_est"], GLYPH_RING_CYCLE, "act ring"),
+             (".est::after", *s["dot_est"], GLYPH_DOT_CYCLE, "dot ring")]
+    for sel, on, off, cycle, what in rings:
+        rule = css_rule(html, "#legend " + sel)
+        span = round(on / (on + off) * cycle, 1)
+        want = f"0 {span:g}deg, rgba(143,155,176,0) {span:g}deg {cycle:g}deg"
+        ok(want in rule, f"{sel}: the estimate glyph carries the {what}'s "
+           f"{on:g}/{off:g} dash", want)
+    ok(css_rule(html, "#legend .ring::before").count("solid") == 1,
+       ".ring: the act ring is drawn solid, as the canvas draws it")
+
+
+def check_legend(html: str, js: str) -> None:
     """The legend decodes the picture; it does not explain it.
 
     Everything the opening already says was moved out of here, so the panel stays short
@@ -329,7 +436,7 @@ def check_legend(html: str) -> None:
     both folds.
     """
     print("\n== legend")
-    panel = html.split('id="legend"', 1)[-1].split("</div>\n\n<div class=\"panel\"", 1)[0]
+    panel = html.split('id="legend">', 1)[-1].split("</div>\n\n<div class=\"panel\"", 1)[0]
     note = re.search(r'<div class="note" id="note" hidden>(.*?)</div>', panel, re.S)
     ok(note is not None, "the reading notes are a section of their own")
     if note is None:
@@ -341,8 +448,21 @@ def check_legend(html: str) -> None:
     rest = re.sub(r"<h2>.*?</h2>", " ", rest, flags=re.S)
     rest = re.sub(r'<button id="notefold".*?</button>', " ", rest, flags=re.S)
     visible = prose(rest)
-    ok(len(visible) < 220, "the legend a reader faces stays under 220 characters",
+    # 280, not the 220 of the older panel: the shapes the picture is built from are six,
+    # not three — the plain grey line is 587 of its 590 edges and cannot go unnamed —
+    # and a shape that is drawn has to be named where it is seen, not in the fold.
+    ok(len(visible) < 280, "the legend a reader faces stays under 280 characters",
        f"{len(visible)} chars: {visible[:70]}…")
+
+    key = re.search(r'<div class="key">(.*?)\n  </div>', panel, re.S)
+    ok(key is not None, "the symbol rows are a block of their own")
+    if key is not None:
+        rows = re.findall(r'<span class="g ([\w-]+)"></span>([^<]*)</div>', key.group(1))
+        rows = [(cls, html_mod.unescape(text).strip()) for cls, text in rows]
+        ok(rows == LEGEND_ROWS, "six symbol rows, areas then points then lines",
+           f"{len(rows)} rows: " + ", ".join(c for c, _ in rows))
+    ok("Warm" not in visible and "kühl" not in visible,
+       "no warm/cool line: the nine labelled rank rows above it say the same thing")
     ok(len(folded) < 380, "the folded notes stay under 380 characters",
        f"{len(folded)} chars")
     ok('id="note" hidden' in panel and 'aria-expanded="false"' in panel,
@@ -832,16 +952,20 @@ def check_preview(path: Path, graph: dict) -> None:
     off = [f"{cx:.0f},{cy:.0f}" for cx, cy, r in circles
            if not box_inside((cx - r, cy - r, cx + r, cy + r), box_v)]
     ok(not off, "every node sits inside the viewBox", str(off[:3]))
-    # the two chrome plates: the rounded rects in the frame group, told apart from the
-    # legend swatches by their corner radius
-    plates = [(float(r.get("x", 0)), float(r.get("y", 0)),
-               float(r.get("x", 0)) + float(r.get("width", 0)),
-               float(r.get("y", 0)) + float(r.get("height", 0)))
-              for r in group(root, "rahmen") if r.get("rx") == "12"]
-    ok(len(plates) == 2, "title plate and legend plate found", f"{len(plates)} plates")
+    # The still carries no chrome: it is only ever seen in the README, which names the
+    # picture and prints the rank legend beside it, so a title plate and a legend panel
+    # would repeat that and cost the graph the room. Everything the file owes a reader
+    # standing alone is in <title> and <desc>, which no plate can crowd.
+    ok(not group(root, "rahmen"), "no chrome group left in the still")
+    ok(not [r for r in root.iter(f"{{{SVG_NS}}}rect") if r.get("rx")],
+       "no panel or swatch: background, edges, circles, dots and act labels only")
+    head = [t.text for t in root
+            if t.tag in (f"{{{SVG_NS}}}title", f"{{{SVG_NS}}}desc")]
+    ok(len(head) == 2 and all(head), "the file still names itself for a screen reader",
+       f"{len(head)} elements")
 
     print("\n== preview: act labels stand free")
-    check_labels_free(boxes, texts, circles, plates, "the title or legend plate")
+    check_labels_free(boxes, texts, circles, [], "chrome")
     check_contrast(boxes, ground)
 
 
@@ -918,7 +1042,8 @@ def main(argv: list[str] | None = None) -> int:
     js = check_js(html)
     check_opening(html, js)
     check_head(html)
-    check_legend(html)
+    check_legend(html, js)
+    check_glyphs(html, js)
     check_mobile(html, js)
     check_selfcontained(html)
     payload = load_payload(html)
