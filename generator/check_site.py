@@ -336,7 +336,7 @@ def check_head(html: str) -> None:
 # lines. Each row is a glyph class and the caption that names what that stroke is.
 LEGEND_ROWS = [
     ("ring", "Rechtsakt; die Punkte darin seine Artikel"),
-    ("est", "nur referenziert: Ausschnitt im Korpus, Umfang geschätzt"),
+    ("est", "non-DORA: nur Ausschnitt im Korpus, Umfang geschätzt"),
     ("dot", "eigenständiges Dokument (Leitlinie, Report, Q&A, Aufsichtsseite)"),
     ("ref", "Verweis/Bezug"),
     ("sup-full", "von DORA vollständig verdrängt"),
