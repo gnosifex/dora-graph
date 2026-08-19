@@ -4,6 +4,8 @@
 
 **Live:** [Die Geburt einer Regulatorik-Galaxie](https://gnosifex.github.io/dora-graph/)
 
+[![DORA im Zentrum, umgeben von den Kreisen der delegierten Rechtsakte, der Referenzakte und den Standards](docs/preview.svg)](https://gnosifex.github.io/dora-graph/)
+
 ---
 
 ## Was das ist
@@ -48,6 +50,12 @@ python3 generator/build_site.py && python3 generator/check_site.py
 ```
 
 Die Skripte laufen mit der Python-Standardbibliothek, ohne Abhängigkeiten und ohne Netz. Ein Bau ist deterministisch: gleiche Eingabedatei, gleiche Ausgabebytes.
+
+`docs/preview.svg` — das Standbild oben — entsteht im selben Lauf aus denselben Layout-Daten und kann deshalb nicht veralten. Die beiden Rasterfassungen sind daraus abgeleitet, für Zwecke, die kein SVG annehmen (`docs/social-preview.png` ist die 1280 × 640 große Karte für die Repo-Einstellungen):
+
+```bash
+rsvg-convert -w 1600 docs/preview.svg -o docs/preview.png
+```
 
 ## Annahmen und Grenzen
 

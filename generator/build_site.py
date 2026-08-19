@@ -1639,6 +1639,489 @@ HTML = r"""<!doctype html>
 """
 
 
+# ---------------------------------------------------------------------------
+# the static preview image
+# ---------------------------------------------------------------------------
+
+# docs/preview.svg is the end frame of the timelapse frozen into a file: every node
+# visible, no clock, nothing that moves. It is written from the very payload the page
+# embeds, so the preview cannot drift away from the site, and it is drawn with
+# presentation attributes only — GitHub sanitises SVG before it renders a README image,
+# so a <style> block, a webfont or any remote reference would be dropped or would never
+# load. Every colour is a literal, the ground is painted rather than left transparent,
+# and each text element carries its own font, size and fill.
+# The working frame is deliberately roomy: the picture is fitted inside it and the file
+# is then cropped to what was actually drawn, so no constant here fixes the finished
+# proportions — the content does.
+SVG_W, SVG_H = 1600.0, 1180.0
+SVG_MARGIN = 16.0                    # clear space between the frame and anything drawn
+SVG_CROP = 14.0                      # the narrow border the finished viewBox keeps
+SVG_BG = "#0b0e14"
+SVG_FG, SVG_DIM = "#e8edf6", "#8f9bb0"
+SVG_PANEL, SVG_PANEL_A = "#121721", "0.9"
+SVG_BORDER, SVG_BORDER_A = "#ffffff", "0.12"
+SVG_EDGE = "#96aacd"                 # the page's rgba(150,170,205,.22)
+SVG_SUPER = "#b3392f"                # the page's rgba(179,57,47,…)
+SVG_FONT = ("-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, "
+            "Arial, sans-serif")
+SVG_LEGEND_W = 330.0
+
+# Label seating for the still. The page can let a label graze a dot — the dot moves, and
+# the reader can hover it; a frozen frame cannot, so the preview seats the act labels
+# itself: clear of every other label, of every circle (its own ring included) and of the
+# two panels, with a dark outline carrying the text over the edges underneath.
+LBL_RING_GAP = 5.0                   # from the ring the label belongs to
+LBL_LABEL_PAD = 3.5                  # between two labels
+LBL_NODE_PAD = 2.5                   # from any circle the label is not attached to
+LBL_PANEL_PAD = 7.0
+LBL_HALO = 3.4
+LBL_DIRS = ((0.0, -1.0), (0.0, 1.0), (-1.0, 0.0), (1.0, 0.0),
+            (-0.75, -0.75), (0.75, -0.75), (-0.75, 0.75), (0.75, 0.75),
+            (-0.45, -1.0), (0.45, -1.0), (-0.45, 1.0), (0.45, 1.0))
+LBL_ABOVE_BONUS = 0.86               # how much the reading position is worth
+LBL_RINGS = 22                       # how far out a crowded label may be pushed
+LBL_STEP_X, LBL_STEP_Y = 5.0, 5.5
+LBL_LEADER = 15.0                    # beyond this gap a label is tied back to its ring
+
+SVG_TITLE = "Die Geburt einer Regulatorik-Galaxie"
+SVG_SUB = ("DORA, seine Vorläufer und sein Folgerecht — indikative, schematische "
+           "Darstellung")
+SVG_LEGEND_HEAD = "Quellenhierarchie"
+SVG_NOTES = (
+    "Warm = hohe Verbindlichkeit, kühl = niedrige.",
+    "Ein Kreis ist ein Rechtsakt; die Punkte darin sind seine Artikel, Anhänge "
+    "und Paragrafen.",
+    "Gestrichelter Rand: Umfang geschätzt. Rote Linie: von DORA verdrängt — "
+    "gestrichelt ganz, gepunktet teilweise.",
+    "Größen und Zeitpunkte sind Näherungen, keine Messwerte. Keine Rechtsberatung.",
+    "github.com/gnosifex/dora-graph",
+)
+
+# Advance widths as a share of the font size, by character class. The page can ask the
+# canvas how wide a string is; a file cannot, so the wrapper here and the reader in
+# check_site.py both work off this table. It only has to be consistent and a little
+# generous — never exact.
+SVG_WIDE = set("mwMW—…%@")
+SVG_NARROW = set(" iljtfrI.,:;'’!|()[]{}-–/·")
+
+
+def text_width(text: str, fs: float) -> float:
+    u = 0.0
+    for c in text:
+        if c in SVG_WIDE:
+            u += 0.92
+        elif c in SVG_NARROW:
+            u += 0.34
+        elif c.isupper() or c.isdigit():
+            u += 0.64
+        else:
+            u += 0.54
+    return u * fs
+
+
+def wrap_text(text: str, fs: float, width: float) -> list[str]:
+    lines: list[str] = []
+    line = ""
+    for word in text.split(" "):
+        trial = word if not line else line + " " + word
+        if line and text_width(trial, fs) > width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    if line:
+        lines.append(line)
+    return lines
+
+
+def relative_luminance(colour: str) -> float:
+    def channel(v: int) -> float:
+        f = v / 255.0
+        return f / 12.92 if f <= 0.04045 else ((f + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(colour[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+
+def contrast_ratio(fg: str, bg: str) -> float:
+    a, b = relative_luminance(fg), relative_luminance(bg)
+    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+
+
+def svg_num(v: float) -> str:
+    """One decimal, no trailing zero, no negative zero — so two builds agree byte for
+    byte and the file stays small."""
+    s = f"{v:.1f}"
+    if s.endswith(".0"):
+        s = s[:-2]
+    return "0" if s == "-0" else s
+
+
+def svg_escape(text: str) -> str:
+    return (text.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def svg_text(x: float, y: float, text: str, fs: float, fill: str, *,
+             weight: str = "400", anchor: str = "start", halo: float = 0.0) -> str:
+    """One text element carrying its whole style — no class, no inheritance, nothing a
+    sanitiser could strip on the way to a README. `halo` widens it into the backing copy
+    that a second, unstroked element is then drawn over."""
+    ring = (f' stroke="{fill}" stroke-width="{svg_num(halo)}" stroke-linejoin="round"'
+            if halo else "")
+    return (f'<text x="{svg_num(x)}" y="{svg_num(y)}" font-family="{SVG_FONT}" '
+            f'font-size="{svg_num(fs)}" font-weight="{weight}" fill="{fill}"{ring} '
+            f'text-anchor="{anchor}">{svg_escape(text)}</text>')
+
+
+def svg_panel(x: float, y: float, w: float, h: float) -> str:
+    return (f'<rect x="{svg_num(x)}" y="{svg_num(y)}" width="{svg_num(w)}" '
+            f'height="{svg_num(h)}" rx="12" fill="{SVG_PANEL}" '
+            f'fill-opacity="{SVG_PANEL_A}" stroke="{SVG_BORDER}" '
+            f'stroke-opacity="{SVG_BORDER_A}" stroke-width="1"/>')
+
+
+def boxes_overlap(a, b, pad: float = 0.0) -> bool:
+    return (a[0] < b[2] + pad and b[0] < a[2] + pad
+            and a[1] < b[3] + pad and b[1] < a[3] + pad)
+
+
+def box_hits_circle(box, cx: float, cy: float, r: float, pad: float = 0.0) -> bool:
+    nx = min(max(cx, box[0]), box[2])
+    ny = min(max(cy, box[1]), box[3])
+    return math.hypot(cx - nx, cy - ny) < r + pad
+
+
+def fit_graph(circles, seats, panels, frame) -> tuple[float, float, float]:
+    """Largest scale at which the whole picture clears the panels, and where to put it.
+
+    The graph is a blob inside a rectangular extent, so the extent's corners carry no
+    ink: a panel may reach well into it as long as it meets nothing. Fitting the graph
+    into the leftover rectangle instead would give away that room, so the scale is
+    bisected against the real objects — every circle and every label seat — and the
+    placement closest to the middle of what is still free wins, which keeps the picture
+    centred rather than hugging whichever edge happened to admit it first.
+    """
+    fx0, fy0, fx1, fy1 = frame
+
+    def offsets(s: float, steps: int):
+        span_x = (fx1 - fx0) - s * (max(c[0] + c[2] for c in circles)
+                                    - min(c[0] - c[2] for c in circles))
+        span_y = (fy1 - fy0) - s * (max(c[1] + c[2] for c in circles)
+                                    - min(c[1] - c[2] for c in circles))
+        if span_x < 0 or span_y < 0:
+            return []
+        base_x = fx0 - s * min(c[0] - c[2] for c in circles)
+        base_y = fy0 - s * min(c[1] - c[2] for c in circles)
+        return [(base_x + span_x * i / steps, base_y + span_y * j / steps)
+                for i in range(steps + 1) for j in range(steps + 1)]
+
+    def clear(s: float, ox: float, oy: float) -> bool:
+        for p in panels:
+            for cx, cy, r in circles:
+                if box_hits_circle(p, ox + cx * s, oy + cy * s, r * s):
+                    return False
+            for x0, y0, x1, y1 in seats:
+                if boxes_overlap(p, (ox + x0 * s, oy + y0 * s, ox + x1 * s, oy + y1 * s)):
+                    return False
+        return True
+
+    lo, hi = 0.4, 4.0
+    for _ in range(22):
+        mid = (lo + hi) / 2
+        if any(clear(mid, ox, oy) for ox, oy in offsets(mid, 16)):
+            lo = mid
+        else:
+            hi = mid
+    good = [(ox, oy) for ox, oy in offsets(lo, 30) if clear(lo, ox, oy)]
+    if not good:                      # only reachable if the frame itself is too small
+        return lo, fx0, fy0
+    mx = sum(o[0] for o in good) / len(good)
+    my = sum(o[1] for o in good) / len(good)
+    ox, oy = min(good, key=lambda o: (o[0] - mx) ** 2 + (o[1] - my) ** 2)
+    return lo, ox, oy
+
+
+def seat_labels(spots, texts, order, circles, panels, frame, fs):
+    """Put every act label at the nearest free spot around its own ring.
+
+    Just above the circle is the reading position, and the biggest act picks first so the
+    strongest ring keeps it. Everything else takes the closest place that is free of the
+    labels already seated, of every circle and of the panels — nearest wins rather than
+    first-direction-that-fits, because a label that drifts far from its circle stops
+    naming it.
+    """
+    placed: dict[int, tuple[float, float, tuple]] = {}
+    for k in order:
+        cx, cy, r = spots[k]
+        w = text_width(texts[k], fs)
+        h = fs * 1.24
+        best = None
+        for ring in range(LBL_RINGS):
+            for dx, dy in LBL_DIRS:
+                lx = cx + dx * (r + LBL_RING_GAP + w / 2 + ring * LBL_STEP_X)
+                ly = cy + dy * (r + LBL_RING_GAP + h / 2 + ring * LBL_STEP_Y)
+                cost = math.hypot(lx - cx, ly - cy) * (LBL_ABOVE_BONUS if dx == 0 and dy < 0
+                                                       else 1.0)
+                if best is not None and cost >= best[0]:
+                    continue
+                box = (lx - w / 2, ly - h / 2, lx + w / 2, ly + h / 2)
+                if (box[0] < frame[0] or box[1] < frame[1]
+                        or box[2] > frame[2] or box[3] > frame[3]):
+                    continue
+                if any(boxes_overlap(box, o[2], LBL_LABEL_PAD) for o in placed.values()):
+                    continue
+                if any(boxes_overlap(box, p, LBL_PANEL_PAD) for p in panels):
+                    continue
+                if any(box_hits_circle(box, *c, LBL_NODE_PAD) for c in circles):
+                    continue
+                best = (cost, lx, ly, box)
+        if best is None:              # never seen; kept so a hard case still draws
+            ly = cy - (r + LBL_RING_GAP + h / 2 + LBL_RINGS * LBL_STEP_Y)
+            best = (0.0, cx, ly, (cx - w / 2, ly - h / 2, cx + w / 2, ly + h / 2))
+        placed[k] = best[1:]
+    return placed
+
+
+def render_preview(payload: dict) -> tuple[str, dict]:
+    """Draw the solved picture as a standalone SVG and report what went into it.
+
+    Geometry, palette and z-order follow the canvas renderer exactly — edges first,
+    then the act circles, then the dots, then the labels — so the file reads as the
+    page's last frame rather than as a second, differently-shaped drawing.
+    """
+    nodes, edges = payload["nodes"], payload["edges"]
+    colour = {p[0]: p[1] for p in payload["palette"]}
+    ext_w, ext_h = payload["extent"]
+
+    # --- the two panels, measured before anything is placed: their boxes are what the
+    # picture has to fit around
+    t_fs, s_fs, t_pad = 30.0, 16.0, 16.0
+    t_w = 2 * t_pad + max(text_width(SVG_TITLE, t_fs), text_width(SVG_SUB, s_fs))
+    t_h = 2 * t_pad + t_fs * 1.06 + 6.0 + s_fs * 1.2
+    title_box = (SVG_MARGIN, SVG_MARGIN, SVG_MARGIN + t_w, SVG_MARGIN + t_h)
+
+    l_pad, sw, gap = 16.0, 15.0, 10.0
+    row_fs, note_fs, head_fs, lead = 14.5, 13.0, 14.0, 18.0
+    row_w = SVG_LEGEND_W - 2 * l_pad - sw - gap
+    note_w = SVG_LEGEND_W - 2 * l_pad
+    rows = [(p[1], wrap_text(p[2], row_fs, row_w)) for p in payload["palette"]]
+    notes = [wrap_text(t, note_fs, note_w) for t in SVG_NOTES]
+    # heading + rank rows + the divider block + the notes; the last note's trailing gap
+    # is eaten by the bottom padding, hence the -5
+    l_h = (l_pad + head_fs * 1.5 + 8.0
+           + sum(lead * len(t) + 6.0 for _, t in rows)
+           + 12.0 + sum(lead * len(t) + 5.0 for t in notes) + l_pad - 5.0)
+    l_x = SVG_W - SVG_MARGIN - SVG_LEGEND_W
+    legend_box = (l_x, SVG_MARGIN, l_x + SVG_LEGEND_W, SVG_MARGIN + l_h)
+    panels = (title_box, legend_box)
+    frame = (SVG_MARGIN, SVG_MARGIN, SVG_W - SVG_MARGIN, SVG_H - SVG_MARGIN)
+
+    # --- fit the picture around the panels rather than beside them
+    graph_circles = [(n["x"], n["y"], n["cr"] if n.get("k") else n["r"]) for n in nodes]
+    seats = []
+    for n in nodes:
+        if not n.get("k"):
+            continue
+        # the seat place_labels reserved, in design units — scale free, so the fit can
+        # weigh it without knowing the answer yet
+        w, h = text_width(n["t"], LABEL_FS), LABEL_FS * 1.24
+        seats.append((n["x"] + n["lx"] - w / 2, n["y"] + n["ly"] - h / 2,
+                      n["x"] + n["lx"] + w / 2, n["y"] + n["ly"] + h / 2))
+    scale, off_x, off_y = fit_graph(graph_circles, seats, panels, frame)
+
+    def at(n: dict) -> tuple[float, float]:
+        return off_x + n["x"] * scale, off_y + n["y"] * scale
+
+    # --- 1) edges: three collected paths instead of 590 elements
+    plain: list[str] = []
+    sup_full: list[str] = []
+    sup_part: list[str] = []
+    for e in edges:
+        ax, ay = at(nodes[e[0]])
+        bx, by = at(nodes[e[1]])
+        seg = f"M{svg_num(ax)} {svg_num(ay)}L{svg_num(bx)} {svg_num(by)}"
+        kind = e[2] if len(e) > 2 else 0
+        (sup_full if kind == 1 else sup_part if kind == 2 else plain).append(seg)
+    sup_w = svg_num(max(1.2, 1.5 * scale))
+    edge_parts = [
+        f'<path d="{"".join(plain)}" fill="none" stroke="{SVG_EDGE}" '
+        f'stroke-opacity="0.22" stroke-width="1"/>'
+    ]
+    for segs, op, dash in ((sup_full, "0.85", (6.0, 4.0)), (sup_part, "0.55", (2.5, 5.0))):
+        if not segs:
+            continue
+        edge_parts.append(
+            f'<path d="{"".join(segs)}" fill="none" stroke="{SVG_SUPER}" '
+            f'stroke-opacity="{op}" stroke-width="{sup_w}" stroke-linecap="butt" '
+            f'stroke-dasharray="{svg_num(dash[0] * scale)} {svg_num(dash[1] * scale)}"/>')
+
+    # --- 2) act circles, 3) dots — one circle element per node, so the file can be
+    # counted against the graph without knowing anything about the layout
+    ring_w = svg_num(max(1.1, 1.4 * scale))
+    dot_w = svg_num(max(1.1, 1.5 * scale))
+    cont_dash = f'{svg_num(4.5 * scale)} {svg_num(3.5 * scale)}'
+    dot_dash = f'{svg_num(3.2 * scale)} {svg_num(2.8 * scale)}'
+    containers: list[str] = []
+    dots: list[str] = []
+    for n in nodes:
+        cx, cy = at(n)
+        col = colour.get(n["g"], "#8a8f98")
+        head = f'<circle cx="{svg_num(cx)}" cy="{svg_num(cy)}"'
+        if n.get("k"):
+            dash = f' stroke-dasharray="{cont_dash}"' if n.get("p") else ""
+            containers.append(
+                f'{head} r="{svg_num(n["cr"] * scale)}" fill="{col}" fill-opacity="0.13" '
+                f'stroke="{col}" stroke-opacity="0.62" stroke-width="{ring_w}"{dash}/>')
+        elif n.get("p"):
+            dots.append(
+                f'{head} r="{svg_num(n["r"] * scale)}" fill="{col}" fill-opacity="0.22" '
+                f'stroke="{col}" stroke-width="{dot_w}" stroke-dasharray="{dot_dash}"/>')
+        else:
+            dots.append(f'{head} r="{svg_num(n["r"] * scale)}" fill="{col}"/>')
+
+    # --- 4) act labels: seated here, not on the page's offsets. The page fades them in
+    # to 0,94 alpha and clamps the size at 13 px; a still has no fade and is read at half
+    # size in a README, so both give way to legibility.
+    label_fs = LABEL_FS * scale
+    spots = {i: (*at(n), n["cr"] * scale) for i, n in enumerate(nodes) if n.get("k")}
+    texts = {i: nodes[i]["t"] for i in spots}
+    obstacles = [(off_x + x * scale, off_y + y * scale, r * scale)
+                 for x, y, r in graph_circles]
+    seated = seat_labels(spots, texts, sorted(spots, key=lambda i: -spots[i][2]),
+                         obstacles, panels, frame, label_fs)
+    labels: list[str] = []
+    halos: list[str] = []
+    leaders: list[str] = []
+    for i, (lx, ly, box) in sorted(seated.items()):
+        base = ly + label_fs * 0.35
+        col = colour.get(nodes[i]["g"], "#8a8f98")
+        # the halo is its own element rather than paint-order: a renderer that does not
+        # honour the property would otherwise paint the outline over the glyph
+        halos.append(svg_text(lx, base, texts[i], label_fs, SVG_BG, weight="600",
+                              anchor="middle", halo=LBL_HALO))
+        labels.append(svg_text(lx, base, texts[i], label_fs, col,
+                               weight="600", anchor="middle"))
+        # A wide name on a small ring cannot always sit beside it. Where the free spot
+        # is far enough that the label would start naming its neighbours instead, a hair
+        # line ties it back to the circle it belongs to.
+        cx, cy, r = spots[i]
+        nx = min(max(cx, box[0]), box[2])
+        ny = min(max(cy, box[1]), box[3])
+        d = math.hypot(nx - cx, ny - cy)
+        if d - r <= max(LBL_LEADER, 0.5 * r) or d < 1e-6:
+            continue
+        ux, uy = (nx - cx) / d, (ny - cy) / d
+        leaders.append(
+            f'<path d="M{svg_num(cx + ux * (r + 2))} {svg_num(cy + uy * (r + 2))}'
+            f'L{svg_num(nx - ux * 2)} {svg_num(ny - uy * 2)}" fill="none" stroke="{col}" '
+            f'stroke-opacity="0.5" stroke-width="1.2"/>')
+
+    # --- the title panel, top left
+    chrome = [svg_panel(*title_box[:2], t_w, t_h),
+              svg_text(SVG_MARGIN + t_pad, SVG_MARGIN + t_pad + t_fs * 0.82,
+                       SVG_TITLE, t_fs, SVG_FG, weight="700"),
+              svg_text(SVG_MARGIN + t_pad, SVG_MARGIN + t_pad + t_fs * 1.06 + 6.0 + s_fs * 0.9,
+                       SVG_SUB, s_fs, SVG_DIM)]
+
+    # --- the legend, right margin: a swatch per rank, then the reading notes. A README
+    # shows the file at roughly half its nominal width, so this is set larger than the
+    # page's 11 px — the ranks are the one thing a still has to carry on its own.
+    chrome.append(svg_panel(l_x, SVG_MARGIN, SVG_LEGEND_W, l_h))
+    y = SVG_MARGIN + l_pad + head_fs * 0.85
+    chrome.append(svg_text(l_x + l_pad, y, SVG_LEGEND_HEAD, head_fs, SVG_DIM, weight="600"))
+    y += head_fs * 0.7 + 8.0
+    for col, lines in rows:
+        chrome.append(
+            f'<rect x="{svg_num(l_x + l_pad)}" y="{svg_num(y + 1.0)}" '
+            f'width="{svg_num(sw)}" height="{svg_num(sw)}" rx="3.5" fill="{col}"/>')
+        for k, line in enumerate(lines):
+            chrome.append(svg_text(l_x + l_pad + sw + gap, y + row_fs * 0.82 + k * lead,
+                                   line, row_fs, SVG_FG))
+        y += lead * len(lines) + 6.0
+    y += 6.0
+    chrome.append(
+        f'<path d="M{svg_num(l_x + l_pad)} {svg_num(y)}H{svg_num(l_x + SVG_LEGEND_W - l_pad)}" '
+        f'stroke="{SVG_BORDER}" stroke-opacity="{SVG_BORDER_A}" stroke-width="1"/>')
+    y += 6.0
+    for lines in notes:
+        for k, line in enumerate(lines):
+            chrome.append(svg_text(l_x + l_pad, y + note_fs * 0.82 + k * lead,
+                                   line, note_fs, SVG_DIM))
+        y += lead * len(lines) + 5.0
+
+    # --- crop to what was actually drawn: circles with their radius, label boxes, the
+    # two panels. The frame above is only a working surface; this is the picture.
+    drawn = [(cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1) for cx, cy, r in obstacles]
+    drawn += [(b[0] - LBL_HALO, b[1] - LBL_HALO, b[2] + LBL_HALO, b[3] + LBL_HALO)
+              for _, _, b in seated.values()]
+    drawn += list(panels)
+    vx = min(b[0] for b in drawn) - SVG_CROP
+    vy = min(b[1] for b in drawn) - SVG_CROP
+    vw = max(b[2] for b in drawn) + SVG_CROP - vx
+    vh = max(b[3] for b in drawn) + SVG_CROP - vy
+
+    doc = "\n".join([
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_num(vw)}" '
+        f'height="{svg_num(vh)}" viewBox="{svg_num(vx)} {svg_num(vy)} '
+        f'{svg_num(vw)} {svg_num(vh)}">',
+        f'<title>{svg_escape(SVG_TITLE)} — {svg_escape(SVG_SUB)}</title>',
+        '<desc>Schematische Karte der DORA-Regulatorik: DORA im Zentrum, umgeben von '
+        'den Kreisen der delegierten Rechtsakte, Leitlinien und Standards; Farbe '
+        'steht für die Verbindlichkeit der Quelle.</desc>',
+        f'<rect x="{svg_num(vx)}" y="{svg_num(vy)}" width="{svg_num(vw)}" '
+        f'height="{svg_num(vh)}" fill="{SVG_BG}"/>',
+        '<g id="kanten">', *edge_parts, '</g>',
+        '<g id="anbindung">', *leaders, '</g>',
+        '<g id="knoten">', *containers, *dots, '</g>',
+        '<g id="beschriftung-halo">', *halos, '</g>',
+        '<g id="beschriftung">', *labels, '</g>',
+        '<g id="rahmen">', *chrome, '</g>',
+        '</svg>',
+        '',
+    ])
+
+    # --- what the picture is worth: fill, seating, contrast
+    boxes = [b for _, _, b in seated.values()]
+    clashes = sum(1 for a in range(len(boxes) - 1) for b in range(a + 1, len(boxes))
+                  if boxes_overlap(boxes[a], boxes[b]))
+    on_nodes = sum(1 for b in boxes for c in obstacles if box_hits_circle(b, *c))
+    on_panels = sum(1 for b in boxes for p in panels if boxes_overlap(b, p))
+    home = sum(1 for i, (lx, ly, _) in seated.items()
+               if abs(lx - spots[i][0]) < 0.01 and ly < spots[i][1])
+    label_cols = {colour.get(n["g"], "#8a8f98") for n in nodes if n.get("k")}
+    contrasts = {c: round(contrast_ratio(c, SVG_BG), 2)
+                 for c in sorted(label_cols | {SVG_FG, SVG_DIM})}
+    stats = {
+        "skalierung": round(scale, 3),
+        "bild": [round(vw), round(vh)],
+        "seitenverhaeltnis": round(vw / vh, 3),
+        "graph_px": [round(ext_w * scale), round(ext_h * scale)],
+        "graph_anteil_breite": f"{100 * ext_w * scale / vw:.0f}%",
+        "elemente": {
+            "kantenpfade": len(edge_parts),
+            "container": len(containers),
+            "punkte": len(dots),
+            "beschriftungen": len(labels),
+            "halos": len(halos),
+            "anbindungen": len(leaders),
+            "rahmen": len(chrome),
+        },
+        "kanten_gezeichnet": {"verweis": len(plain), "ganz": len(sup_full),
+                              "teilweise": len(sup_part)},
+        "beschriftung": {
+            "ueber_dem_kreis": f"{home}/{len(boxes)}",
+            "ueberlappt_label": clashes,
+            "ueberlappt_knoten": on_nodes,
+            "ueberlappt_panel": on_panels,
+        },
+        "legende_hoehe": round(l_h, 1),
+        "kontrast_gegen_grund": contrasts,
+        "min_kontrast": round(min(contrasts.values()), 2),
+    }
+    return doc, stats
+
+
 def container_label(title: str) -> str:
     return title.split(" (")[0].strip()
 
@@ -1682,6 +2165,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="metadata graph to read (default: %(default)s)")
     ap.add_argument("--out", type=Path, default=Path("docs/index.html"),
                     help="page to write (default: %(default)s)")
+    ap.add_argument("--svg", type=Path, default=Path("docs/preview.svg"),
+                    help="static preview image to write (default: %(default)s)")
     ap.add_argument("--report", type=Path, default=None,
                     help="write the geometry report to this file instead of stdout")
     args = ap.parse_args(argv)
@@ -1975,6 +2460,11 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(HTML.replace("__DATA__", blob), encoding="utf-8")
 
+    # the same payload a second time, as the still image the README can show
+    svg, svg_stats = render_preview(payload)
+    args.svg.parent.mkdir(parents=True, exist_ok=True)
+    args.svg.write_text(svg, encoding="utf-8")
+
     # --- checks
     bad_containment = []
     for ci, ms in members.items():
@@ -2018,6 +2508,7 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "out": str(args.out),
         "bytes": args.out.stat().st_size,
+        "vorschau": dict(datei=str(args.svg), bytes=args.svg.stat().st_size, **svg_stats),
         "nodes": len(nodes),
         "edges": len(edges),
         "container": len(container_idx),

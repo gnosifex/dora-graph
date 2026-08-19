@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify docs/index.html against data/graph.json — file-based, no browser, no server.
 
-Four families of checks:
+Five families of checks:
   * the page:   placeholder replaced, script tags paired, JS structurally intact and
                 still carrying the render decisions the design depends on, the opening
                 sequence and its sound wired the way the design requires, and the whole
@@ -11,6 +11,10 @@ Four families of checks:
   * the geometry, for BOTH layouts (final picture and pre-impact pack): zero overlaps in
                 every pair category, containment, uniform unit radii, the free-node cap,
                 label collisions, connectivity, and the 1,5 x DORA distance guard rail
+  * the preview image docs/preview.svg: well-formed XML, one circle per graph node,
+                nothing that a README host would strip or refuse to fetch, and a
+                readability pass — everything inside the viewBox, no label collisions,
+                enough contrast against the painted ground
 
 Exits non-zero as soon as one check fails.
 """
@@ -22,10 +26,68 @@ import json
 import math
 import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 # has to stay in step with build_site's label model
 LABEL_FS, LABEL_CHAR_W = 11.0, 0.60
+
+# has to stay in step with build_site's SVG text metric — the file cannot measure a
+# string, so writer and reader share one table of advance widths
+SVG_NS = "http://www.w3.org/2000/svg"
+SVG_WIDE = set("mwMW—…%@")
+SVG_NARROW = set(" iljtfrI.,:;'’!|()[]{}-–/·")
+
+
+def text_width(text: str, fs: float) -> float:
+    u = 0.0
+    for c in text:
+        if c in SVG_WIDE:
+            u += 0.92
+        elif c in SVG_NARROW:
+            u += 0.34
+        elif c.isupper() or c.isdigit():
+            u += 0.64
+        else:
+            u += 0.54
+    return u * fs
+
+
+def boxes_overlap(a, b) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def box_inside(a, outer) -> bool:
+    return (a[0] >= outer[0] - 0.5 and a[1] >= outer[1] - 0.5
+            and a[2] <= outer[2] + 0.5 and a[3] <= outer[3] + 0.5)
+
+
+def box_hits_circle(box, circle) -> bool:
+    cx, cy, r = circle
+    nx = min(max(cx, box[0]), box[2])
+    ny = min(max(cy, box[1]), box[3])
+    return math.hypot(cx - nx, cy - ny) < r
+
+
+def blend(fg: str, bg: str, alpha: float) -> str:
+    """What the eye actually gets when a fill is drawn at less than full opacity."""
+    out = [round(int(fg[i:i + 2], 16) * alpha + int(bg[i:i + 2], 16) * (1 - alpha))
+           for i in (1, 3, 5)]
+    return "#" + "".join(f"{v:02x}" for v in out)
+
+
+def relative_luminance(colour: str) -> float:
+    def channel(v: int) -> float:
+        f = v / 255.0
+        return f / 12.92 if f <= 0.04045 else ((f + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(colour[i:i + 2], 16) for i in (1, 3, 5))
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+
+def contrast_ratio(fg: str, bg: str) -> float:
+    a, b = relative_luminance(fg), relative_luminance(bg)
+    return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+
 
 FAIL: list[str] = []
 
@@ -408,12 +470,147 @@ def check_geometry(d: dict) -> None:
        ", ".join(f"{t[:28]} {s:.1f}" for s, t in over[:3]))
 
 
+# Everything a README host is allowed to strip: the preview has to survive sanitising
+# untouched, so it may carry none of it.
+SVG_FORBIDDEN_TAGS = ("script", "style", "image", "foreignObject", "use", "a",
+                      "animate", "set", "iframe")
+SVG_FORBIDDEN_TEXT = ("href", "xlink", "url(", "@import", "data:", "<!ENTITY",
+                      "javascript:", "class=")
+
+
+def check_preview(path: Path, graph: dict) -> None:
+    print("\n== preview image")
+    ok(path.exists(), f"{path} present")
+    if not path.exists():
+        return
+    raw = path.read_text(encoding="utf-8")
+    size = len(raw.encode("utf-8"))
+    ok(size < 400_000, "under 400 kB", f"{size / 1024:.0f} kB")
+
+    root = None
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError as exc:
+        ok(False, "well-formed XML", str(exc))
+        return
+    ok(True, "well-formed XML")
+    ok(root.tag == f"{{{SVG_NS}}}svg", "root element is <svg>", root.tag)
+
+    print("\n== preview: nothing to fetch, nothing to strip")
+    for tag in SVG_FORBIDDEN_TAGS:
+        ok(not any(True for _ in root.iter(f"{{{SVG_NS}}}{tag}")), f"no <{tag}> element")
+    for frag in SVG_FORBIDDEN_TEXT:
+        ok(frag not in raw, f"nothing that resolves elsewhere: {frag}")
+    urls = sorted(set(re.findall(r"https?://[^\s\"'<>)]+", raw)))
+    ok(urls == [SVG_NS], "the SVG namespace is the only URL in the file", str(urls[:4]))
+
+    print("\n== preview: standalone geometry")
+    view = [float(v) for v in (root.get("viewBox") or "").split()]
+    ok(len(view) == 4 and view[2] > 0 and view[3] > 0, "viewBox present and non-empty",
+       root.get("viewBox"))
+    if len(view) != 4:
+        return
+    w, h = float(root.get("width", 0)), float(root.get("height", 0))
+    ok(w > 0 and h > 0, "explicit width and height on the root", f"{w:g} x {h:g}")
+    ok(abs(view[2] - w) < 1e-6 and abs(view[3] - h) < 1e-6,
+       "viewBox agrees with width/height")
+    ok(1.15 <= w / h <= 2.15, "aspect in the band a README column reads well",
+       f"{w / h:.3f}")
+    box_v = (view[0], view[1], view[0] + w, view[1] + h)
+
+    painted = [e for e in root if e.tag not in (f"{{{SVG_NS}}}title", f"{{{SVG_NS}}}desc")]
+    first = painted[0] if painted else None
+    ground = (first.get("fill") or "") if first is not None else ""
+    ok(first is not None and first.tag == f"{{{SVG_NS}}}rect"
+       and abs(float(first.get("x", 1e9)) - view[0]) < 0.5
+       and abs(float(first.get("y", 1e9)) - view[1]) < 0.5
+       and float(first.get("width", 0)) >= w and float(first.get("height", 0)) >= h
+       and re.fullmatch(r"#[0-9a-fA-F]{6}", ground) is not None,
+       "the ground is a painted full-bleed rectangle, not transparency", ground)
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", ground):
+        return          # without a known ground the readability pass has no reference
+
+    print("\n== preview: drawn against data/graph.json")
+    circles = [(float(c.get("cx", 0)), float(c.get("cy", 0)), float(c.get("r", 0)))
+               for c in root.iter(f"{{{SVG_NS}}}circle")]
+    ok(len(circles) == len(graph["nodes"]), "one circle drawn per graph node",
+       f"{len(circles)} vs {len(graph['nodes'])}")
+    labels = root.find(f".//{{{SVG_NS}}}g[@id='beschriftung']")
+    texts = list(labels) if labels is not None else []
+    want = {n["title"].split(" (")[0].strip()
+            for n in graph["nodes"] if n["kind"] == "container"}
+    ok({t.text for t in texts} == want, "every act circle carries its label",
+       f"{len(texts)} labels")
+    halo_group = root.find(f".//{{{SVG_NS}}}g[@id='beschriftung-halo']")
+    halos = list(halo_group) if halo_group is not None else []
+    ok(len(halos) == len(texts) and [t.text for t in halos] == [t.text for t in texts],
+       "each label is backed by its own halo copy", f"{len(halos)} halos")
+
+    print("\n== preview: readability")
+    all_text = list(root.iter(f"{{{SVG_NS}}}text"))
+    styled = [t for t in all_text
+              if float(t.get("font-size", 0)) > 0 and t.get("font-family")
+              and re.fullmatch(r"#[0-9a-fA-F]{6}", t.get("fill") or "")]
+    ok(len(styled) == len(all_text) and bool(styled),
+       "every text carries its own font, size and literal fill",
+       f"{len(styled)}/{len(all_text)} text elements")
+
+    # box, seen colour and the contrast floor WCAG puts on a text of that weight
+    boxes: dict[object, tuple] = {}
+    for t in styled:
+        fs, weight = float(t.get("font-size")), int(t.get("font-weight", 400))
+        tw = text_width(t.text or "", fs)
+        x, y = float(t.get("x", 0)), float(t.get("y", 0))
+        anchor = t.get("text-anchor", "start")
+        x0 = x - tw / 2 if anchor == "middle" else x - tw if anchor == "end" else x
+        boxes[t] = ((x0, y - fs * 0.80, x0 + tw, y + fs * 0.25),
+                    blend(t.get("fill"), ground, float(t.get("fill-opacity", 1.0))),
+                    3.0 if fs >= 24 or (fs >= 18.66 and weight >= 600) else 4.5)
+
+    outside = [t.text for t, (b, _, _) in boxes.items() if not box_inside(b, box_v)]
+    ok(not outside, "no text runs out of the viewBox", str(outside[:3]))
+    off = [f"{cx:.0f},{cy:.0f}" for cx, cy, r in circles
+           if not box_inside((cx - r, cy - r, cx + r, cy + r), box_v)]
+    ok(not off, "every node sits inside the viewBox", str(off[:3]))
+
+    # the two chrome plates: the rounded rects in the frame group, told apart from the
+    # legend swatches by their corner radius
+    frame = root.find(f".//{{{SVG_NS}}}g[@id='rahmen']")
+    plates = [(float(r.get("x", 0)), float(r.get("y", 0)),
+               float(r.get("x", 0)) + float(r.get("width", 0)),
+               float(r.get("y", 0)) + float(r.get("height", 0)))
+              for r in (frame if frame is not None else []) if r.get("rx") == "12"]
+    ok(len(plates) == 2, "title plate and legend plate found", f"{len(plates)} plates")
+
+    print("\n== preview: act labels stand free")
+    lb = [(t.text, boxes[t][0]) for t in texts if t in boxes]
+    clash = [(lb[i][0], lb[j][0]) for i in range(len(lb) - 1) for j in range(i + 1, len(lb))
+             if boxes_overlap(lb[i][1], lb[j][1])]
+    ok(not clash, "no label overlaps another label", str(clash[:2]))
+    on_node = sorted({name for name, b in lb for c in circles if box_hits_circle(b, c)})
+    ok(not on_node, "no label sits on a circle or a dot", str(on_node[:4]))
+    on_plate = sorted({name for name, b in lb for p in plates if boxes_overlap(b, p)})
+    ok(not on_plate, "no label runs under the title or legend plate", str(on_plate[:3]))
+
+    # Light text on a dark ground: measuring against the darkest paint in the file is
+    # the conservative reading — the panels only ever sit lighter than it. The halo
+    # copies are background-coloured by design; they are read through, not read.
+    backing = set(halos)
+    scored = sorted((contrast_ratio(seen, ground) - need, seen, need, t.text or "")
+                    for t, (_, seen, need) in boxes.items() if t not in backing)
+    ok(bool(scored) and scored[0][0] >= 0, "every text clears its contrast floor",
+       f"worst {scored[0][1]}: {scored[0][0] + scored[0][2]:.2f} >= {scored[0][2]}"
+       if scored else "")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Verify the built page against the graph.")
     ap.add_argument("--graph", type=Path, default=Path("data/graph.json"),
                     help="metadata graph (default: %(default)s)")
     ap.add_argument("--html", type=Path, default=Path("docs/index.html"),
                     help="built page (default: %(default)s)")
+    ap.add_argument("--svg", type=Path, default=Path("docs/preview.svg"),
+                    help="built preview image (default: %(default)s)")
     args = ap.parse_args(argv)
 
     html = args.html.read_text(encoding="utf-8")
@@ -427,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     check_payload(payload, graph)
     check_assumptions(graph)
     check_geometry(payload)
+    check_preview(args.svg, graph)
 
     print("\n" + ("ALL CHECKS PASSED" if not FAIL else f"{len(FAIL)} FAILED: {FAIL}"))
     return 1 if FAIL else 0
