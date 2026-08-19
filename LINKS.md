@@ -24,15 +24,15 @@ Repository spiegelt keinen Normtext.
 | KWG § 6 – Aufgaben | 1961-07-10 | [kwg-par-006](https://www.gesetze-im-internet.de/kredwg/__6.html) |
 | KWG § 60c – Bekanntmachung von Maßnahmen und Sanktionen wegen Verstößen gegen | 1961-07-10 | [kwg-par-060c](https://www.gesetze-im-internet.de/kredwg/__60c.html) |
 | KWG § 65a – Übergangsvorschrift zum Finanzmarktdigitalisierungsgesetz | 1961-07-10 | [kwg-par-065a](https://www.gesetze-im-internet.de/kredwg/__65a.html) |
+| CRD | 2006-06-13 | [crd](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711) |
+| CRD Art. 3 – Begriffsbestimmungen | 2006-06-14 | [crd-art-003](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_3) |
+| CRD Art. 65 – Verwaltungssanktionen, Zwangsgelder und andere Verwaltungsmaßnahmen | 2006-06-14 | [crd-art-065](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_65) |
+| CRD Art. 74 – Interne Unternehmensführung und Sanierungs- und Abwicklungspläne | 2006-06-14 | [crd-art-074](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_74) |
+| CRD Art. 85 – Operationelles Risiko | 2006-06-14 | [crd-art-085](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_85) |
+| CRD Art. 97 – Aufsichtliche Überprüfung und Bewertung | 2006-06-14 | [crd-art-097](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_97) |
 | Verordnung 1025-2012 | 2012-10-24 | [reg-1025-2012](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02012R1025-20241213) |
 | Verordnung 1025-2012 Art. 2 – Begriffsbestimmungen | 2012-10-25 | [reg-1025-2012-art-002](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02012R1025-20241213#art_2) |
-| CRD | 2013-06-25 | [crd](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711) |
 | CRR | 2013-06-25 | [crr](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013R0575-20260626) |
-| CRD Art. 3 – Begriffsbestimmungen | 2013-06-26 | [crd-art-003](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_3) |
-| CRD Art. 65 – Verwaltungssanktionen, Zwangsgelder und andere Verwaltungsmaßnahmen | 2013-06-26 | [crd-art-065](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_65) |
-| CRD Art. 74 – Interne Unternehmensführung und Sanierungs- und Abwicklungspläne | 2013-06-26 | [crd-art-074](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_74) |
-| CRD Art. 85 – Operationelles Risiko | 2013-06-26 | [crd-art-085](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_85) |
-| CRD Art. 97 – Aufsichtliche Überprüfung und Bewertung | 2013-06-26 | [crd-art-097](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013L0036-20260711#art_97) |
 | CRR Art. 312 – Eigenmittelanforderung für das operationelle Risiko | 2013-06-26 | [crr-art-312](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013R0575-20260626#art_312) |
 | CRR Art. 323 – Rahmen für die Steuerung operationeller Risiken | 2013-06-26 | [crr-art-323](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013R0575-20260626#art_323) |
 | CRR Art. 4 – Begriffsbestimmungen | 2013-06-26 | [crr-art-004](https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:02013R0575-20260626#art_4) |
