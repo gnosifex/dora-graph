@@ -70,6 +70,10 @@
           "date": "2005-12-20",
           "reason": "Erstfassung: erste MaRisk 2005."
         },
+        "crd": {
+          "date": "2006-06-13",
+          "reason": "Erstfassung CRD I (Richtlinien 2006/48/EG und 2006/49/EG); gespiegelt ist CRD IV. Gilt für den Akt und seine gespiegelten Einheiten (Einheiten: 2006-06-14); der Akt-Kreis trägt den Vortag, damit er vor seinen Einheiten erscheint."
+        },
         "kwg": {
           "date": "1961-07-09",
           "reason": "Erstfassung: Kreditwesengesetz in der Fassung von 1961. Gilt für den Akt und seine gespiegelten Einheiten (Einheiten: 1961-07-10); der Akt-Kreis trägt den Vortag, damit er vor seinen Einheiten erscheint."
@@ -4643,7 +4647,7 @@
     {
       "id": "crd-art-003",
       "title": "CRD Art. 3 – Begriffsbestimmungen",
-      "date": "2013-06-26",
+      "date": "2006-06-14",
       "group": "rang-1",
       "kind": "member",
       "size": 15236,
@@ -4655,7 +4659,7 @@
     {
       "id": "crd-art-065",
       "title": "CRD Art. 65 – Verwaltungssanktionen, Zwangsgelder und andere Verwaltungsmaßnahmen",
-      "date": "2013-06-26",
+      "date": "2006-06-14",
       "group": "rang-1",
       "kind": "member",
       "size": 5855,
@@ -4667,7 +4671,7 @@
     {
       "id": "crd-art-074",
       "title": "CRD Art. 74 – Interne Unternehmensführung und Sanierungs- und Abwicklungspläne",
-      "date": "2013-06-26",
+      "date": "2006-06-14",
       "group": "rang-1",
       "kind": "member",
       "size": 2083,
@@ -4679,7 +4683,7 @@
     {
       "id": "crd-art-085",
       "title": "CRD Art. 85 – Operationelles Risiko",
-      "date": "2013-06-26",
+      "date": "2006-06-14",
       "group": "rang-1",
       "kind": "member",
       "size": 1218,
@@ -4691,7 +4695,7 @@
     {
       "id": "crd-art-097",
       "title": "CRD Art. 97 – Aufsichtliche Überprüfung und Bewertung",
-      "date": "2013-06-26",
+      "date": "2006-06-14",
       "group": "rang-1",
       "kind": "member",
       "size": 5628,
@@ -4703,7 +4707,7 @@
     {
       "id": "crd",
       "title": "CRD",
-      "date": "2013-06-25",
+      "date": "2006-06-13",
       "group": "rang-1",
       "kind": "container",
       "size": 990660,

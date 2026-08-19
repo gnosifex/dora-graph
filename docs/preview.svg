@@ -14,6 +14,7 @@
 <path d="M91.9 945.9L91.9 1056.9" fill="none" stroke="#B3392F" stroke-opacity="0.5" stroke-width="1.2"/>
 </g>
 <g id="knoten">
+<g id="akte">
 <circle cx="762.3" cy="658.4" r="89.3" fill="#B3392F" fill-opacity="0.13" stroke="#B3392F" stroke-opacity="0.62" stroke-width="2.9"/>
 <circle cx="1007.6" cy="926.6" r="37.9" fill="#EF5A3C" fill-opacity="0.13" stroke="#EF5A3C" stroke-opacity="0.62" stroke-width="2.9"/>
 <circle cx="1094.6" cy="832" r="37.9" fill="#EF5A3C" fill-opacity="0.13" stroke="#EF5A3C" stroke-opacity="0.62" stroke-width="2.9"/>
@@ -31,6 +32,8 @@
 <circle cx="1142" cy="450.6" r="28.3" fill="#B3392F" fill-opacity="0.13" stroke="#B3392F" stroke-opacity="0.62" stroke-width="2.9" stroke-dasharray="9.3 7.2"/>
 <circle cx="285.1" cy="530" r="46.6" fill="#B3392F" fill-opacity="0.13" stroke="#B3392F" stroke-opacity="0.62" stroke-width="2.9" stroke-dasharray="9.3 7.2"/>
 <circle cx="91.9" cy="918.8" r="25.1" fill="#B3392F" fill-opacity="0.13" stroke="#B3392F" stroke-opacity="0.62" stroke-width="2.9" stroke-dasharray="9.3 7.2"/>
+</g>
+<g id="punkte">
 <circle cx="768.5" cy="658.4" r="5.2" fill="#B3392F"/>
 <circle cx="754.3" cy="665.6" r="5.2" fill="#B3392F"/>
 <circle cx="763.5" cy="644.4" r="5.2" fill="#B3392F"/>
@@ -415,6 +418,7 @@
 <circle cx="251.3" cy="1006.4" r="7.4" fill="#8B5CF6" fill-opacity="0.22" stroke="#8B5CF6" stroke-width="3.1" stroke-dasharray="6.6 5.8"/>
 <circle cx="262" cy="829.7" r="5.2" fill="#8B5CF6" fill-opacity="0.22" stroke="#8B5CF6" stroke-width="3.1" stroke-dasharray="6.6 5.8"/>
 <circle cx="188" cy="876.9" r="18.2" fill="#8B5CF6" fill-opacity="0.22" stroke="#8B5CF6" stroke-width="3.1" stroke-dasharray="6.6 5.8"/>
+</g>
 </g>
 <g id="beschriftung-halo">
 <text x="762.3" y="470" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22.7" font-weight="600" fill="#0b0e14" stroke="#0b0e14" stroke-width="3.4" stroke-linejoin="round" text-anchor="middle">DORA</text>

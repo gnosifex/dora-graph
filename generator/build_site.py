@@ -807,20 +807,32 @@ HTML = r"""<!doctype html>
     border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
   #legend li:hover { background: rgba(255,255,255,.07); }
   #legend li.on { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.28); }
-  #legend.off ul, #legend.off .note { display: none; }
+  /* a low window must never put a line of the legend out of reach */
+  #legend { max-height: calc(100vh - 130px); overflow-y: auto; overscroll-behavior: contain; }
+  #legend.off ul, #legend.off .key, #legend.off .note, #legend.off .caveat,
+  #legend.off #notefold { display: none; }
   #legend .sw { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
   #legend .n { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
-  #legend .note { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
-    color: var(--dim); font-size: 11px; }
+  #legend .key { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 11px; line-height: 1.55; }
+  #legend #notefold { display: block; width: 100%; margin-top: 8px; padding: 3px 6px;
+    text-align: left; color: var(--dim); font-size: 11px; background: none; border: none; }
+  #legend #notefold:hover { background: rgba(255,255,255,.07); color: var(--fg); }
+  #legend #notefold .caret { float: right; }
+  #legend .note { margin: 2px 0 0; padding: 0 6px; color: var(--dim); font-size: 11px;
+    line-height: 1.5; }
+  #legend .caveat { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+    color: var(--fg); font-size: 11px; }
   #legend .ring { display:inline-block; width:12px; height:12px; border-radius:50%;
     border:1.4px solid #8f9bb0; background:rgba(143,155,176,.18); vertical-align:-2px; }
   #legend .dash { display:inline-block; width:12px; height:12px; border-radius:50%;
     border:1.4px dashed #8f9bb0; vertical-align:-2px; }
   #legend .sup { display:inline-block; width:12px; height:0; vertical-align:3px;
     border-top:1.6px dashed #B3392F; }
-  #legend .note a { color: var(--fg); text-decoration: underline;
-    text-underline-offset: 2px; }
-  #legend .caveat { color: var(--fg); }
+  /* the way back to the sources: in the bar, so neither fold can hide it */
+  #repo { color: var(--dim); text-decoration: none; font-size: 12px; padding: 4px 8px;
+    border: 1px solid var(--line); border-radius: 7px; white-space: nowrap; }
+  #repo:hover { color: var(--fg); background: rgba(255,255,255,.09); }
   #bar { left: 14px; right: 14px; bottom: 14px; padding: 8px 12px 6px; }
   #row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   button { background: rgba(255,255,255,.07); color: var(--fg); border: 1px solid var(--line);
@@ -891,35 +903,23 @@ HTML = r"""<!doctype html>
 
 <div class="panel" id="legend">
   <h2>Quellenhierarchie <button id="legfold" title="Legende ein-/ausklappen">–</button></h2>
-  <ul id="legend-list"></ul>
-  <div class="note">
-    Klick auf eine Zeile hebt diesen Rang hervor, ein zweiter Klick hebt es auf.<br>
-    Warm = hohe Verbindlichkeit, kühl = niedrige.<br>
-    <span class="ring"></span> Ein Kreis ist ein Rechtsakt; seine Artikel, Anhänge und
-    Paragrafen liegen darin.<br>
-    <span class="dash"></span> Gestrichelt: Umfang geschätzt — das Dokument liegt nicht
-    vollständig im Korpus (Referenzakte hochgerechnet, Standards als Seitenzahl).<br>
-    <span class="sup"></span> Rote Strichlinie: von DORA verdrängt — lang gestrichelt
-    ganz (aufgehoben), fein gepunktet teilweise (in Kraft, Teilbereich überholt).<br>
-    Knotengröße ist indikativ: bei eigenständigen Dokumenten der Textumfang, bei einem
-    Rechtsakt die Zahl seiner <em>gespiegelten</em> Einheiten — CRR und CRD sind in
-    Wirklichkeit weit umfangreicher als DORA, erscheinen hier aber klein, weil nur wenige
-    ihrer Artikel im Korpus liegen. Artikel, Q&As und Aufsichtsseiten sind einheitlich
-    klein.<br>
-    Zeitpunkt = Erscheinen der ersten Fassung eines Instruments, indikativ eingeordnet;
-    die Abfolge stimmt, das einzelne Datum ist kein Beleg. Bestand vor 2006 ab Start
-    sichtbar.<br>
-    Der Bestand wartet dicht um die Bildmitte; am DORA-Datum schlägt der DORA-Kreis dort
-    ein und drückt ihn auf seine Endpositionen nach außen.<br>
-    Gezeigt wird der Ausschnitt, der bei der Analyse des Korpus einen Bezug zu DORA
-    erkennen ließ: von den 106 Erwägungsgründen nur die 7 verwiesenen, von KWG, CRR und
-    CRD nur die einschlägigen Bestimmungen.<br>
-    <span class="caveat">Indikative, schematische Darstellung ohne Anspruch auf
-    Vollständigkeit — nicht maßstäblich, keine Rechtsberatung.</span>
-    Daten, Code und Quellenliste:
-    <a href="https://github.com/gnosifex/dora-graph" target="_blank"
-       rel="noopener">github.com/gnosifex/dora-graph</a>
+  <ul id="legend-list" title="Klick auf eine Zeile hebt diesen Rang hervor, ein zweiter Klick hebt es auf"></ul>
+  <div class="key">
+    Warm = verbindlich, kühl = unverbindlich.<br>
+    <span class="ring"></span> Kreis = Rechtsakt, Punkte darin seine Artikel<br>
+    <span class="dash"></span> Gestrichelt: Umfang geschätzt<br>
+    <span class="sup"></span> Rot: von DORA verdrängt
   </div>
+  <button id="notefold" aria-expanded="false" aria-controls="note">Hinweise zur Lesart
+    <span class="caret">▸</span></button>
+  <div class="note" id="note" hidden>
+    Größe: bei Dokumenten der Textumfang, bei einem Rechtsakt die Zahl seiner
+    gespiegelten Einheiten — CRR und CRD wirken deshalb klein.<br>
+    Zeitpunkt: Erstfassung des Instruments, indikativ eingeordnet.<br>
+    Gestrichelt heißt hochgerechnet; rot gepunktet heißt nur teilweise verdrängt.<br>
+    Gezeigt wird der DORA-Ausschnitt des Korpus, nicht der Rechtsbestand.
+  </div>
+  <div class="caveat">Indikativ und schematisch. Keine Rechtsberatung.</div>
 </div>
 
 <div class="panel" id="bar">
@@ -938,8 +938,10 @@ HTML = r"""<!doctype html>
       <button class="md" data-m="compact">Kompakt</button>
     </div>
     <div class="grp">
-      <button id="sound" title="Erzeugte Klangfläche ein-/ausschalten">♪ Ton</button>
+      <button id="sound" title="Erzeugte Klangfläche ein-/ausschalten — iPhones geben bei aktivem seitlichem Stummschalter keinen Webton aus">♪ Ton</button>
       <button id="intro-again" title="Vorspann erneut abspielen">Vorspann</button>
+      <a id="repo" href="https://github.com/gnosifex/dora-graph" target="_blank"
+         rel="noopener" title="Daten, Code und Quellenliste: github.com/gnosifex/dora-graph">Repo</a>
     </div>
   </div>
   <div id="track">
@@ -988,8 +990,23 @@ HTML = r"""<!doctype html>
   }
   var MONTHS = ["Januar","Februar","März","April","Mai","Juni",
                 "Juli","August","September","Oktober","November","Dezember"];
-  var DUR = { prop: 45, compact: 30 };
+  // What the page remembers between visits — declared together and before anything
+  // reads them, since the legend builds itself long before the opening sequence does.
+  var IKEY = "dora-graph.intro", SKEY = "dora-graph.sound", NKEY = "dora-graph.notes";
+
+  // How long the appearances take. The clock runs past this by TAIL, so the picture has
+  // time to finish what the last appearance started.
+  var SPAN = { prop: 45, compact: 30 };
   var FADE = 0.9;
+  // The settling pass is an over-damped spring: pull SPRING towards the solved seat,
+  // velocity cut to KEEP per second. Its slow mode decays at RATE, so a node born up to
+  // BORN_MAX units off its seat is within a tenth of a unit after that many seconds.
+  // The run-out is that plus the fade — anything shorter leaves the last-born nodes
+  // standing half-transparent beside their places when the timeline ends.
+  var SPRING = 9, KEEP = 0.0016, BORN_MIN = 5, BORN_MAX = 13;
+  var DECAY = -Math.log(KEEP);
+  var RATE = (DECAY - Math.sqrt(Math.max(DECAY * DECAY - 4 * SPRING, 0))) / 2;
+  var TAIL = FADE + Math.log(BORN_MAX / 0.1) / RATE;
 
   function toDay(iso) { var p = iso.split("-"); return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000; }
   var T0 = toDay(DATA.t0);
@@ -1026,11 +1043,17 @@ HTML = r"""<!doctype html>
   }
 
   var mode = "prop", speed = 1, playing = false, tNow = 0, last = 0;
-  function duration() { return DUR[mode]; }
-  function appearT(n) { return (mode === "prop" ? n.ap : n.ac) * duration(); }
+  function span() { return SPAN[mode]; }
+  function duration() { return span() + TAIL; }
+  function appearT(n) { return (mode === "prop" ? n.ap : n.ac) * span(); }
   function progress() { return Math.min(tNow / duration(), 1); }
+  // Where the corpus stands, which is not where the animation stands: nothing appears
+  // during the run-out, so the readout holds on the last real document date instead of
+  // inventing months the data does not have.
+  function shown() { return Math.min(tNow / span(), 1); }
+  function barFor(f) { return f * span() / duration(); }
   function currentDV() {
-    var p = progress();
+    var p = shown();
     if (mode === "prop") return minDV + p * spanDV;
     return events[Math.min(Math.round(p * evLast), events.length - 1)];
   }
@@ -1092,10 +1115,23 @@ HTML = r"""<!doctype html>
   window.addEventListener("resize", resize);
 
   var CELL = 46;
+  // The end of the timeline is a state, not wherever the process happened to get to.
+  // Reaching it by playing, by dragging the slider there, or by landing on it after a
+  // resize all have to give the same frame as the still image: everything opaque, every
+  // node exactly on its solved seat.
+  function settleAll() {
+    for (var q = 0; q < nodes.length; q++) {
+      var n = nodes[q];
+      n.born = true; n.a = 1;
+      n.x = n.sx; n.y = n.sy; n.vx = 0; n.vy = 0;
+    }
+    return nodes.length;
+  }
   function step(dt) {
     var d = Math.min(dt, 0.05), q, n;
     var ease = impactEase();
     place();
+    if (tNow >= duration()) return settleAll();
     CELL = Math.max(rMaxPx * 2 + 6 * scale, 12);
     var grid = {}, visible = [], free = [];
     for (q = 0; q < nodes.length; q++) {
@@ -1104,7 +1140,8 @@ HTML = r"""<!doctype html>
       if (tNow >= at) {
         if (!n.born) {
           n.born = true;
-          var ang = Math.random() * Math.PI * 2, rad = (5 + Math.random() * 8) * scale;
+          var ang = Math.random() * Math.PI * 2;
+          var rad = (BORN_MIN + Math.random() * (BORN_MAX - BORN_MIN)) * scale;
           n.x = n.sx + Math.cos(ang) * rad; n.y = n.sy + Math.sin(ang) * rad;
           n.vx = 0; n.vy = 0;
         }
@@ -1144,8 +1181,8 @@ HTML = r"""<!doctype html>
           }
         }
       }
-      a.vx += (a.sx - a.x) * 9 * d; a.vy += (a.sy - a.y) * 9 * d;
-      var damp = Math.pow(0.0016, d);
+      a.vx += (a.sx - a.x) * SPRING * d; a.vy += (a.sy - a.y) * SPRING * d;
+      var damp = Math.pow(KEEP, d);
       a.vx *= damp; a.vy *= damp;
       a.x += a.vx * d; a.y += a.vy * d;
     }
@@ -1351,11 +1388,11 @@ HTML = r"""<!doctype html>
     for (var y = y0; y <= y1; y++) {
       var f = fractionFor(Date.UTC(y, 0, 1) / 86400000);
       if (f < 0 || f > 1) continue;
-      if (f * 100 - placed < 3.6) continue;
-      placed = f * 100;
+      if (barFor(f) * 100 - placed < 3.6) continue;
+      placed = barFor(f) * 100;
       var s = document.createElement("span");
       s.textContent = String(y);
-      s.style.left = (f * 100).toFixed(2) + "%";
+      s.style.left = (barFor(f) * 100).toFixed(2) + "%";
       host.appendChild(s);
     }
   }
@@ -1393,6 +1430,18 @@ HTML = r"""<!doctype html>
       fold.textContent = legendOpen ? "–" : "+";
       resize();
     });
+    // The reading notes are a second, inner fold, shut by default: the legend decodes
+    // the picture, the notes qualify it, and only the first is needed to look at it.
+    var note = document.getElementById("note"), nf = document.getElementById("notefold");
+    var caret = nf.querySelector(".caret");
+    function setNote(open) {
+      note.hidden = !open;
+      caret.textContent = open ? "▾" : "▸";
+      nf.setAttribute("aria-expanded", open ? "true" : "false");
+      store(NKEY, open ? "1" : "0");
+    }
+    nf.addEventListener("click", function () { setNote(note.hidden); });
+    setNote(stored(NKEY) === "1");
   })();
 
   var tip = document.getElementById("tip");
@@ -1433,7 +1482,6 @@ HTML = r"""<!doctype html>
   // vanishing point over a star field; both are drawn here, nothing is loaded. The
   // clock is the same rAF loop the graph runs on, so skipping is just a state change.
   // -------------------------------------------------------------------------
-  var IKEY = "dora-graph.intro", SKEY = "dora-graph.sound";
   var INTRO_DUR = 36;
   var reduce = false;
   try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e0) {}
@@ -1523,16 +1571,37 @@ HTML = r"""<!doctype html>
   });
 
   // -------------------------------------------------------------------------
-  // Sound. Off until the user asks for it, generated in the browser and never loaded:
-  // three low oscillators a hair apart beat against each other, a slow filter breathes
-  // over them, a filtered noise bed sits underneath. No pitch ever changes, so there is
-  // nothing to follow — it is a surface, not a piece of music. The picture only moves
-  // the level and the filter: quiet under the opening, a swell where DORA lands, and a
-  // slow retreat as the timeline runs out.
+  // Sound. Off until the user asks for it, generated in the browser and never loaded.
+  //
+  // A harmonic stack on a 220 Hz fundamental — fifth, octave and twelfth above it, plus
+  // a quiet sub an octave below. The register is the point: a phone speaker radiates
+  // almost nothing under ~400 Hz, so the levels lean deliberately towards the top of
+  // the stack, where a handset actually has output, and the ear rebuilds the
+  // fundamental from those partials. The sub is a floor for speakers that have one,
+  // never a load-bearing part.
+  //
+  // Each partial breathes on its own very slow LFO — different rates AND different
+  // start phases, so they never swing together and the surface never repeats audibly.
+  // The detuning is a few cents per partial: enough to keep the stack from sounding
+  // computed, far too little to beat. No pitch ever changes, so there is nothing to
+  // follow — it is a surface, not a piece of music. The picture only moves level and
+  // filter: quiet under the opening, a swell with a breath of air where DORA lands,
+  // and a slow retreat as the timeline runs out.
   // -------------------------------------------------------------------------
-  var soundOn = false, actx = null, master = null, lp = null;
-  var lastLevel = -1, lastCut = -1;
-  var MASTER_MAX = 0.16;
+  var soundOn = false, actx = null, master = null, lp = null, air = null;
+  var lastLevel = -1, lastCut = -1, lastAir = -1;
+  var MASTER_MAX = 0.14;
+  // frequency, detune (cents), level, breath depth, breath rate (Hz), breath phase
+  var VOICES = [
+    [110.0, 5, 0.09, 0.03, 0.023, 0.0],
+    [220.0, 0, 0.28, 0.10, 0.029, 1.9],
+    [330.0, -4, 0.24, 0.09, 0.037, 3.7],
+    [440.0, 7, 0.19, 0.06, 0.047, 5.1],
+    [660.0, -6, 0.15, 0.05, 0.061, 2.6]
+  ];
+  var SND_HINT = "Erzeugte Klangfläche ein-/ausschalten — iPhones geben bei aktivem "
+    + "seitlichem Stummschalter keinen Webton aus";
+  var SND_BLOCKED = "Der Browser hat die Tonausgabe nicht freigegeben";
 
   function buildAudio() {
     var AC = window.AudioContext || window.webkitAudioContext;
@@ -1542,21 +1611,28 @@ HTML = r"""<!doctype html>
     master.gain.value = 0.0001;
     master.connect(actx.destination);
     lp = actx.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = 240; lp.Q.value = 0.7;
+    lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 0.6;
     lp.connect(master);
-    var fs = [61.7, 62.13, 92.9], k, o, g;
-    for (k = 0; k < fs.length; k++) {
+    var k, v, o, g, l, d;
+    for (k = 0; k < VOICES.length; k++) {
+      v = VOICES[k];
       o = actx.createOscillator();
-      o.type = (k === 2) ? "triangle" : "sine";
-      o.frequency.value = fs[k];
-      g = actx.createGain();
-      g.gain.value = (k === 2) ? 0.16 : 0.34;
+      o.type = "sine"; o.frequency.value = v[0]; o.detune.value = v[1];
+      g = actx.createGain(); g.gain.value = v[2];
       o.connect(g); g.connect(lp); o.start();
+      // the breath: a sub-audio sine added onto this partial's level. Its start phase
+      // is baked into a one-harmonic PeriodicWave, so the five never move in lockstep.
+      l = actx.createOscillator();
+      l.frequency.value = v[4];
+      try {
+        l.setPeriodicWave(actx.createPeriodicWave(
+          new Float32Array([0, Math.cos(v[5])]), new Float32Array([0, Math.sin(v[5])])));
+      } catch (e4) { l.type = "sine"; }
+      d = actx.createGain(); d.gain.value = v[3];
+      l.connect(d); d.connect(g.gain); l.start();
     }
-    var lfo = actx.createOscillator();
-    lfo.type = "sine"; lfo.frequency.value = 0.031;
-    var amt = actx.createGain(); amt.gain.value = 150;
-    lfo.connect(amt); amt.connect(lp.frequency); lfo.start();
+    // a bed of filtered noise: not heard on its own, it is what the filter sweep at the
+    // impact becomes audible through
     var len = Math.floor(actx.sampleRate * 4);
     var buf = actx.createBuffer(1, len, actx.sampleRate);
     var ch = buf.getChannelData(0), rnd = seeded(1774), prev = 0, s;
@@ -1567,51 +1643,70 @@ HTML = r"""<!doctype html>
     var src = actx.createBufferSource();
     src.buffer = buf; src.loop = true;
     var bp = actx.createBiquadFilter();
-    bp.type = "bandpass"; bp.frequency.value = 430; bp.Q.value = 0.6;
-    var ng = actx.createGain(); ng.gain.value = 0.05;
-    src.connect(bp); bp.connect(ng); ng.connect(master); src.start();
+    bp.type = "bandpass"; bp.frequency.value = 760; bp.Q.value = 0.5;
+    air = actx.createGain(); air.gain.value = 0.03;
+    src.connect(bp); bp.connect(air); air.connect(lp); src.start();
     return true;
   }
 
   function audioUpdate() {
     if (!soundOn || !actx || actx.state !== "running") return;
-    var lvl = introActive ? 0.34 : 0.62, cut = 240, p = progress();
+    var lvl = introActive ? 0.34 : 0.62, cut = introActive ? 900 : 1400;
+    var puff = 0.03, p = progress();
     if (!introActive) {
       var u = impactRaw();
       if (u > 0 && u < 2.2) {
         var b = Math.sin(Math.PI * (u * 0.4545));
-        lvl += 0.38 * b; cut += 900 * b;
+        lvl += 0.38 * b; cut += 2200 * b; puff += 0.09 * b;
       }
       if (p > 0.94) {
         var f = (1 - p) * 16.6667;
-        lvl *= 0.25 + 0.75 * f; cut = 150 + (cut - 150) * f;
+        lvl *= 0.25 + 0.75 * f; cut = 600 + (cut - 600) * f;
       }
     }
     if (Math.abs(lvl - lastLevel) > 0.004) {
       lastLevel = lvl;
       master.gain.setTargetAtTime(Math.max(lvl * MASTER_MAX, 0.0001), actx.currentTime, 0.35);
     }
-    if (Math.abs(cut - lastCut) > 6) {
+    if (Math.abs(cut - lastCut) > 12) {
       lastCut = cut;
-      lp.frequency.setTargetAtTime(cut, actx.currentTime, 0.35);
+      lp.frequency.setTargetAtTime(cut, actx.currentTime, 0.45);
+    }
+    if (Math.abs(puff - lastAir) > 0.004) {
+      lastAir = puff;
+      air.gain.setTargetAtTime(puff, actx.currentTime, 0.5);
     }
   }
 
-  function setSound(on) {
-    if (on && !actx && !buildAudio()) return;
+  function soundState(on, hint) {
     soundOn = on;
     soundBtn.className = on ? "on" : "";
+    soundBtn.title = hint;
     store(SKEY, on ? "1" : "0");
-    lastLevel = -1; lastCut = -1;
-    if (!actx) return;
-    if (on) {
-      if (actx.resume) actx.resume();
-    } else {
+    lastLevel = -1; lastCut = -1; lastAir = -1;
+  }
+
+  function setSound(on) {
+    if (!on) {
+      soundState(false, SND_HINT);
+      if (!actx) return;
       master.gain.setTargetAtTime(0.0001, actx.currentTime, 0.25);
       setTimeout(function () { if (!soundOn && actx && actx.suspend) actx.suspend(); }, 1400);
+      return;
     }
+    if (!actx && !buildAudio()) { soundState(false, SND_BLOCKED); return; }
+    // iOS hands out a suspended context and only starts it inside the gesture, so the
+    // switch reports what the context actually does rather than what was asked for
+    var settle = function () {
+      if (actx.state === "running") soundState(true, SND_HINT);
+      else soundState(false, SND_BLOCKED);
+    };
+    var r = null;
+    try { r = actx.resume ? actx.resume() : null; } catch (e5) { r = null; }
+    if (r && r.then) r.then(settle, settle); else settle();
   }
   soundBtn.addEventListener("click", function () { setSound(!soundOn); });
+  soundBtn.title = SND_HINT;
   if (reduce) { soundBtn.disabled = true; soundBtn.title = "Bei reduzierter Bewegung aus"; }
 
   resize(); buildTicks(); syncScrub();
@@ -1696,6 +1791,21 @@ SVG_NOTES = (
     "Größen und Zeitpunkte sind Näherungen, keine Messwerte. Keine Rechtsberatung.",
     "github.com/gnosifex/dora-graph",
 )
+
+# The social preview card. GitHub asks for 1280 x 640 and keeps a 40 pt guard around
+# anything that matters, because some places crop the card — at this pixel size that is
+# 80 px per edge. Edges and single dots may run into the guard, since losing one costs
+# the reader nothing; everything that names something stays inside it. The card is read
+# while scrolling past, often at 500 px wide, so its type is set far larger than the
+# still's and only the biggest acts are named at all.
+SOC_W, SOC_H = 1280.0, 640.0
+SOC_SAFE = 80.0
+SOC_TITLE_FS, SOC_SUB_FS = 44.0, 20.0
+SOC_KEY_FS, SOC_LABEL_FS = 18.0, 20.0
+SOC_COL_W = 470.0                    # the text column, wide enough for the title's tail
+SOC_CHIP, SOC_CHIP_GAP = 16.0, 6.0
+SOC_NAMED = 6                        # DORA and the five next largest circles
+SOC_KEY_CAPTION = "Warm = bindendes Recht, kühl = Auslegung"
 
 # Advance widths as a share of the font size, by character class. The page can ask the
 # canvas how wide a string is; a file cannot, so the wrapper here and the reader in
@@ -1882,6 +1992,222 @@ def seat_labels(spots, texts, order, circles, panels, frame, fs):
     return placed
 
 
+def draw_edges(nodes, edges, at, scale: float) -> list[str]:
+    """The whole edge set as three collected paths instead of one element per edge."""
+    plain: list[str] = []
+    sup_full: list[str] = []
+    sup_part: list[str] = []
+    for e in edges:
+        ax, ay = at(nodes[e[0]])
+        bx, by = at(nodes[e[1]])
+        seg = f"M{svg_num(ax)} {svg_num(ay)}L{svg_num(bx)} {svg_num(by)}"
+        kind = e[2] if len(e) > 2 else 0
+        (sup_full if kind == 1 else sup_part if kind == 2 else plain).append(seg)
+    out = [f'<path d="{"".join(plain)}" fill="none" stroke="{SVG_EDGE}" '
+           f'stroke-opacity="0.22" stroke-width="1"/>']
+    sup_w = svg_num(max(1.2, 1.5 * scale))
+    for segs, op, dash in ((sup_full, "0.85", (6.0, 4.0)), (sup_part, "0.55", (2.5, 5.0))):
+        if not segs:
+            continue
+        out.append(
+            f'<path d="{"".join(segs)}" fill="none" stroke="{SVG_SUPER}" '
+            f'stroke-opacity="{op}" stroke-width="{sup_w}" stroke-linecap="butt" '
+            f'stroke-dasharray="{svg_num(dash[0] * scale)} {svg_num(dash[1] * scale)}"/>')
+    return out
+
+
+def draw_nodes(nodes, colour, at, scale: float) -> tuple[list[str], list[str]]:
+    """One circle element per node — acts first, then the dots, as on the canvas."""
+    ring_w = svg_num(max(1.1, 1.4 * scale))
+    dot_w = svg_num(max(1.1, 1.5 * scale))
+    cont_dash = f'{svg_num(4.5 * scale)} {svg_num(3.5 * scale)}'
+    dot_dash = f'{svg_num(3.2 * scale)} {svg_num(2.8 * scale)}'
+    acts: list[str] = []
+    dots: list[str] = []
+    for n in nodes:
+        cx, cy = at(n)
+        col = colour.get(n["g"], "#8a8f98")
+        head = f'<circle cx="{svg_num(cx)}" cy="{svg_num(cy)}"'
+        if n.get("k"):
+            dash = f' stroke-dasharray="{cont_dash}"' if n.get("p") else ""
+            acts.append(
+                f'{head} r="{svg_num(n["cr"] * scale)}" fill="{col}" fill-opacity="0.13" '
+                f'stroke="{col}" stroke-opacity="0.62" stroke-width="{ring_w}"{dash}/>')
+        elif n.get("p"):
+            dots.append(
+                f'{head} r="{svg_num(n["r"] * scale)}" fill="{col}" fill-opacity="0.22" '
+                f'stroke="{col}" stroke-width="{dot_w}" stroke-dasharray="{dot_dash}"/>')
+        else:
+            dots.append(f'{head} r="{svg_num(n["r"] * scale)}" fill="{col}"/>')
+    return acts, dots
+
+
+def draw_labels(seated, spots, texts, colours, fs: float):
+    """Every act name twice — a background-coloured backing copy, then the name itself —
+    plus the hair line back to any ring the name could not sit beside."""
+    labels: list[str] = []
+    halos: list[str] = []
+    leaders: list[str] = []
+    for i, (lx, ly, box) in sorted(seated.items()):
+        base = ly + fs * 0.35
+        col = colours[i]
+        # the halo is its own element rather than paint-order: a renderer that does not
+        # honour the property would otherwise paint the outline over the glyph
+        halos.append(svg_text(lx, base, texts[i], fs, SVG_BG, weight="600",
+                              anchor="middle", halo=LBL_HALO))
+        labels.append(svg_text(lx, base, texts[i], fs, col, weight="600", anchor="middle"))
+        cx, cy, r = spots[i]
+        nx = min(max(cx, box[0]), box[2])
+        ny = min(max(cy, box[1]), box[3])
+        d = math.hypot(nx - cx, ny - cy)
+        if d - r <= max(LBL_LEADER, 0.5 * r) or d < 1e-6:
+            continue
+        ux, uy = (nx - cx) / d, (ny - cy) / d
+        leaders.append(
+            f'<path d="M{svg_num(cx + ux * (r + 2))} {svg_num(cy + uy * (r + 2))}'
+            f'L{svg_num(nx - ux * 2)} {svg_num(ny - uy * 2)}" fill="none" stroke="{col}" '
+            f'stroke-opacity="0.5" stroke-width="1.2"/>')
+    return labels, halos, leaders
+
+
+def svg_open(vx: float, vy: float, vw: float, vh: float) -> list[str]:
+    return [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_num(vw)}" '
+        f'height="{svg_num(vh)}" viewBox="{svg_num(vx)} {svg_num(vy)} '
+        f'{svg_num(vw)} {svg_num(vh)}">',
+        f'<title>{svg_escape(SVG_TITLE)} — {svg_escape(SVG_SUB)}</title>',
+        '<desc>Schematische Karte der DORA-Regulatorik: DORA im Zentrum, umgeben von '
+        'den Kreisen der delegierten Rechtsakte, Leitlinien und Standards; Farbe '
+        'steht für die Verbindlichkeit der Quelle.</desc>',
+        f'<rect x="{svg_num(vx)}" y="{svg_num(vy)}" width="{svg_num(vw)}" '
+        f'height="{svg_num(vh)}" fill="{SVG_BG}"/>',
+    ]
+
+
+def render_social_card(payload: dict) -> tuple[str, dict]:
+    """Draw the same picture as GitHub's social preview card.
+
+    The card is a different job from the still: it is looked at, not read, often at
+    500 px wide and sometimes cropped. So it keeps GitHub's 80 px guard clear of
+    everything that names something, sets the type far larger, and names only the acts
+    big enough to carry a name at this size — the rest of the constellation is texture.
+    """
+    nodes, edges = payload["nodes"], payload["edges"]
+    colour = {p[0]: p[1] for p in payload["palette"]}
+    safe = (SOC_SAFE, SOC_SAFE, SOC_W - SOC_SAFE, SOC_H - SOC_SAFE)
+
+    # --- the words: the title block hangs from the top of the guard, the colour key
+    # stands on its bottom edge, so the picture keeps the whole middle of the card
+    title_lines = wrap_text(SVG_TITLE, SOC_TITLE_FS, SOC_COL_W)
+    sub_lines = wrap_text(SVG_SUB, SOC_SUB_FS, SOC_COL_W)
+    key_lines = wrap_text(SOC_KEY_CAPTION, SOC_KEY_FS, SOC_COL_W)
+    t_lead, s_lead, k_lead = SOC_TITLE_FS * 1.14, SOC_SUB_FS * 1.35, SOC_KEY_FS * 1.35
+    head_h = len(title_lines) * t_lead + 12.0 + len(sub_lines) * s_lead
+    head_w = max(max((text_width(t, SOC_TITLE_FS) for t in title_lines), default=0.0),
+                 max((text_width(t, SOC_SUB_FS) for t in sub_lines), default=0.0))
+    key_h = SOC_CHIP + 10.0 + len(key_lines) * k_lead
+    key_w = max(len(payload["palette"]) * (SOC_CHIP + SOC_CHIP_GAP) - SOC_CHIP_GAP,
+                max((text_width(t, SOC_KEY_FS) for t in key_lines), default=0.0))
+    head_box = (safe[0], safe[1], safe[0] + head_w, safe[1] + head_h)
+    key_top = safe[3] - key_h
+    key_box = (safe[0], key_top, safe[0] + key_w, safe[3])
+    blocks = (head_box, key_box)
+
+    # --- the picture takes what the words leave, inside the guard
+    circles = [(n["x"], n["y"], n["cr"] if n.get("k") else n["r"]) for n in nodes]
+    scale, off_x, off_y = fit_graph(circles, [], blocks, safe)
+
+    def at(n: dict) -> tuple[float, float]:
+        return off_x + n["x"] * scale, off_y + n["y"] * scale
+
+    edge_parts = draw_edges(nodes, edges, at, scale)
+    acts, dots = draw_nodes(nodes, colour, at, scale)
+
+    # --- only the biggest acts are named; a 17 px name on a 20 px circle would be noise
+    ranked = sorted((i for i, n in enumerate(nodes) if n.get("k")),
+                    key=lambda i: -nodes[i]["cr"])[:SOC_NAMED]
+    spots = {i: (*at(nodes[i]), nodes[i]["cr"] * scale) for i in ranked}
+    texts = {i: nodes[i]["t"] for i in ranked}
+    cols = {i: colour.get(nodes[i]["g"], "#8a8f98") for i in ranked}
+    obstacles = [(off_x + x * scale, off_y + y * scale, r * scale) for x, y, r in circles]
+    seated = seat_labels(spots, texts, ranked, obstacles, blocks, safe, SOC_LABEL_FS)
+    labels, halos, leaders = draw_labels(seated, spots, texts, cols, SOC_LABEL_FS)
+
+    # --- the words themselves: title, subtitle, and the colour key as one chip row
+    chrome: list[str] = []
+    chrome_boxes: list[tuple] = []
+
+    def line(x: float, y: float, text: str, fs: float, fill: str, weight: str) -> None:
+        chrome.append(svg_text(x, y, text, fs, SVG_BG, weight=weight, halo=LBL_HALO))
+        chrome.append(svg_text(x, y, text, fs, fill, weight=weight))
+        w = text_width(text, fs)
+        chrome_boxes.append((x, y - fs * 0.80, x + w, y + fs * 0.25))
+
+    y = safe[1] + SOC_TITLE_FS * 0.82
+    for t in title_lines:
+        line(safe[0], y, t, SOC_TITLE_FS, SVG_FG, "700")
+        y += t_lead
+    y += 12.0 - t_lead + SOC_SUB_FS * 0.82
+    for t in sub_lines:
+        line(safe[0], y, t, SOC_SUB_FS, SVG_DIM, "400")
+        y += s_lead
+    y = key_top
+    for m, p in enumerate(payload["palette"]):
+        cx = safe[0] + m * (SOC_CHIP + SOC_CHIP_GAP)
+        chrome.append(f'<rect x="{svg_num(cx)}" y="{svg_num(y)}" '
+                      f'width="{svg_num(SOC_CHIP)}" height="{svg_num(SOC_CHIP)}" '
+                      f'rx="3.5" fill="{p[1]}"/>')
+        chrome_boxes.append((cx, y, cx + SOC_CHIP, y + SOC_CHIP))
+    y += SOC_CHIP + 10.0 + SOC_KEY_FS * 0.82
+    for t in key_lines:
+        line(safe[0], y, t, SOC_KEY_FS, SVG_DIM, "400")
+        y += k_lead
+
+    doc = "\n".join([
+        *svg_open(0.0, 0.0, SOC_W, SOC_H),
+        '<g id="kanten">', *edge_parts, '</g>',
+        '<g id="anbindung">', *leaders, '</g>',
+        '<g id="knoten">',
+        '<g id="akte">', *acts, '</g>',
+        '<g id="punkte">', *dots, '</g>',
+        '</g>',
+        '<g id="beschriftung-halo">', *halos, '</g>',
+        '<g id="beschriftung">', *labels, '</g>',
+        '<g id="rahmen">', *chrome, '</g>',
+        '</svg>',
+        '',
+    ])
+
+    # everything that names something has to survive a crop: the text, the labels and
+    # every act circle. Edges and single dots may run into the guard.
+    guarded = chrome_boxes + [b for _, _, b in seated.values()]
+    guarded += [(off_x + n["x"] * scale - n["cr"] * scale,
+                 off_y + n["y"] * scale - n["cr"] * scale,
+                 off_x + n["x"] * scale + n["cr"] * scale,
+                 off_y + n["y"] * scale + n["cr"] * scale)
+                for n in nodes if n.get("k")]
+    outside = sum(1 for b in guarded
+                  if b[0] < safe[0] - 0.5 or b[1] < safe[1] - 0.5
+                  or b[2] > safe[2] + 0.5 or b[3] > safe[3] + 0.5)
+    span = (min(c[0] - c[2] for c in obstacles), min(c[1] - c[2] for c in obstacles),
+            max(c[0] + c[2] for c in obstacles), max(c[1] + c[2] for c in obstacles))
+    stats = {
+        "bild": [round(SOC_W), round(SOC_H)],
+        "sicherheitsrand": round(SOC_SAFE),
+        "skalierung": round(scale, 3),
+        "graph_px": [round(span[2] - span[0]), round(span[3] - span[1])],
+        "benannte_akte": [texts[i] for i in ranked],
+        "elemente": {"kantenpfade": len(edge_parts), "container": len(acts),
+                     "punkte": len(dots), "beschriftungen": len(labels),
+                     "anbindungen": len(leaders), "rahmen": len(chrome)},
+        "ausserhalb_des_sicherheitsrands": outside,
+        "titelblock": [round(head_w), round(head_h)],
+        "farbschluessel": [round(key_w), round(key_h)],
+    }
+    return doc, stats
+
+
 def render_preview(payload: dict) -> tuple[str, dict]:
     """Draw the solved picture as a standalone SVG and report what went into it.
 
@@ -1932,89 +2258,21 @@ def render_preview(payload: dict) -> tuple[str, dict]:
     def at(n: dict) -> tuple[float, float]:
         return off_x + n["x"] * scale, off_y + n["y"] * scale
 
-    # --- 1) edges: three collected paths instead of 590 elements
-    plain: list[str] = []
-    sup_full: list[str] = []
-    sup_part: list[str] = []
-    for e in edges:
-        ax, ay = at(nodes[e[0]])
-        bx, by = at(nodes[e[1]])
-        seg = f"M{svg_num(ax)} {svg_num(ay)}L{svg_num(bx)} {svg_num(by)}"
-        kind = e[2] if len(e) > 2 else 0
-        (sup_full if kind == 1 else sup_part if kind == 2 else plain).append(seg)
-    sup_w = svg_num(max(1.2, 1.5 * scale))
-    edge_parts = [
-        f'<path d="{"".join(plain)}" fill="none" stroke="{SVG_EDGE}" '
-        f'stroke-opacity="0.22" stroke-width="1"/>'
-    ]
-    for segs, op, dash in ((sup_full, "0.85", (6.0, 4.0)), (sup_part, "0.55", (2.5, 5.0))):
-        if not segs:
-            continue
-        edge_parts.append(
-            f'<path d="{"".join(segs)}" fill="none" stroke="{SVG_SUPER}" '
-            f'stroke-opacity="{op}" stroke-width="{sup_w}" stroke-linecap="butt" '
-            f'stroke-dasharray="{svg_num(dash[0] * scale)} {svg_num(dash[1] * scale)}"/>')
+    edge_parts = draw_edges(nodes, edges, at, scale)
+    containers, dots = draw_nodes(nodes, colour, at, scale)
 
-    # --- 2) act circles, 3) dots — one circle element per node, so the file can be
-    # counted against the graph without knowing anything about the layout
-    ring_w = svg_num(max(1.1, 1.4 * scale))
-    dot_w = svg_num(max(1.1, 1.5 * scale))
-    cont_dash = f'{svg_num(4.5 * scale)} {svg_num(3.5 * scale)}'
-    dot_dash = f'{svg_num(3.2 * scale)} {svg_num(2.8 * scale)}'
-    containers: list[str] = []
-    dots: list[str] = []
-    for n in nodes:
-        cx, cy = at(n)
-        col = colour.get(n["g"], "#8a8f98")
-        head = f'<circle cx="{svg_num(cx)}" cy="{svg_num(cy)}"'
-        if n.get("k"):
-            dash = f' stroke-dasharray="{cont_dash}"' if n.get("p") else ""
-            containers.append(
-                f'{head} r="{svg_num(n["cr"] * scale)}" fill="{col}" fill-opacity="0.13" '
-                f'stroke="{col}" stroke-opacity="0.62" stroke-width="{ring_w}"{dash}/>')
-        elif n.get("p"):
-            dots.append(
-                f'{head} r="{svg_num(n["r"] * scale)}" fill="{col}" fill-opacity="0.22" '
-                f'stroke="{col}" stroke-width="{dot_w}" stroke-dasharray="{dot_dash}"/>')
-        else:
-            dots.append(f'{head} r="{svg_num(n["r"] * scale)}" fill="{col}"/>')
-
-    # --- 4) act labels: seated here, not on the page's offsets. The page fades them in
-    # to 0,94 alpha and clamps the size at 13 px; a still has no fade and is read at half
+    # --- act labels: seated here, not on the page's offsets. The page fades them in to
+    # 0,94 alpha and clamps the size at 13 px; a still has no fade and is read at half
     # size in a README, so both give way to legibility.
     label_fs = LABEL_FS * scale
     spots = {i: (*at(n), n["cr"] * scale) for i, n in enumerate(nodes) if n.get("k")}
     texts = {i: nodes[i]["t"] for i in spots}
+    cols = {i: colour.get(nodes[i]["g"], "#8a8f98") for i in spots}
     obstacles = [(off_x + x * scale, off_y + y * scale, r * scale)
                  for x, y, r in graph_circles]
     seated = seat_labels(spots, texts, sorted(spots, key=lambda i: -spots[i][2]),
                          obstacles, panels, frame, label_fs)
-    labels: list[str] = []
-    halos: list[str] = []
-    leaders: list[str] = []
-    for i, (lx, ly, box) in sorted(seated.items()):
-        base = ly + label_fs * 0.35
-        col = colour.get(nodes[i]["g"], "#8a8f98")
-        # the halo is its own element rather than paint-order: a renderer that does not
-        # honour the property would otherwise paint the outline over the glyph
-        halos.append(svg_text(lx, base, texts[i], label_fs, SVG_BG, weight="600",
-                              anchor="middle", halo=LBL_HALO))
-        labels.append(svg_text(lx, base, texts[i], label_fs, col,
-                               weight="600", anchor="middle"))
-        # A wide name on a small ring cannot always sit beside it. Where the free spot
-        # is far enough that the label would start naming its neighbours instead, a hair
-        # line ties it back to the circle it belongs to.
-        cx, cy, r = spots[i]
-        nx = min(max(cx, box[0]), box[2])
-        ny = min(max(cy, box[1]), box[3])
-        d = math.hypot(nx - cx, ny - cy)
-        if d - r <= max(LBL_LEADER, 0.5 * r) or d < 1e-6:
-            continue
-        ux, uy = (nx - cx) / d, (ny - cy) / d
-        leaders.append(
-            f'<path d="M{svg_num(cx + ux * (r + 2))} {svg_num(cy + uy * (r + 2))}'
-            f'L{svg_num(nx - ux * 2)} {svg_num(ny - uy * 2)}" fill="none" stroke="{col}" '
-            f'stroke-opacity="0.5" stroke-width="1.2"/>')
+    labels, halos, leaders = draw_labels(seated, spots, texts, cols, label_fs)
 
     # --- the title panel, top left
     chrome = [svg_panel(*title_box[:2], t_w, t_h),
@@ -2061,19 +2319,13 @@ def render_preview(payload: dict) -> tuple[str, dict]:
     vh = max(b[3] for b in drawn) + SVG_CROP - vy
 
     doc = "\n".join([
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_num(vw)}" '
-        f'height="{svg_num(vh)}" viewBox="{svg_num(vx)} {svg_num(vy)} '
-        f'{svg_num(vw)} {svg_num(vh)}">',
-        f'<title>{svg_escape(SVG_TITLE)} — {svg_escape(SVG_SUB)}</title>',
-        '<desc>Schematische Karte der DORA-Regulatorik: DORA im Zentrum, umgeben von '
-        'den Kreisen der delegierten Rechtsakte, Leitlinien und Standards; Farbe '
-        'steht für die Verbindlichkeit der Quelle.</desc>',
-        f'<rect x="{svg_num(vx)}" y="{svg_num(vy)}" width="{svg_num(vw)}" '
-        f'height="{svg_num(vh)}" fill="{SVG_BG}"/>',
+        *svg_open(vx, vy, vw, vh),
         '<g id="kanten">', *edge_parts, '</g>',
         '<g id="anbindung">', *leaders, '</g>',
-        '<g id="knoten">', *containers, *dots, '</g>',
+        '<g id="knoten">',
+        '<g id="akte">', *containers, '</g>',
+        '<g id="punkte">', *dots, '</g>',
+        '</g>',
         '<g id="beschriftung-halo">', *halos, '</g>',
         '<g id="beschriftung">', *labels, '</g>',
         '<g id="rahmen">', *chrome, '</g>',
@@ -2107,8 +2359,7 @@ def render_preview(payload: dict) -> tuple[str, dict]:
             "anbindungen": len(leaders),
             "rahmen": len(chrome),
         },
-        "kanten_gezeichnet": {"verweis": len(plain), "ganz": len(sup_full),
-                              "teilweise": len(sup_part)},
+        "verdraengungspfade": len(edge_parts) - 1,
         "beschriftung": {
             "ueber_dem_kreis": f"{home}/{len(boxes)}",
             "ueberlappt_label": clashes,
@@ -2167,6 +2418,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="page to write (default: %(default)s)")
     ap.add_argument("--svg", type=Path, default=Path("docs/preview.svg"),
                     help="static preview image to write (default: %(default)s)")
+    ap.add_argument("--card", type=Path, default=Path("docs/social-card.svg"),
+                    help="social preview card to write (default: %(default)s)")
     ap.add_argument("--report", type=Path, default=None,
                     help="write the geometry report to this file instead of stdout")
     args = ap.parse_args(argv)
@@ -2460,10 +2713,14 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(HTML.replace("__DATA__", blob), encoding="utf-8")
 
-    # the same payload a second time, as the still image the README can show
-    svg, svg_stats = render_preview(payload)
+    # the same payload again, as the two still images: the README preview, and the
+    # social card in the shape and with the guard GitHub asks for
     args.svg.parent.mkdir(parents=True, exist_ok=True)
+    svg, svg_stats = render_preview(payload)
     args.svg.write_text(svg, encoding="utf-8")
+    card, card_stats = render_social_card(payload)
+    args.card.parent.mkdir(parents=True, exist_ok=True)
+    args.card.write_text(card, encoding="utf-8")
 
     # --- checks
     bad_containment = []
@@ -2509,6 +2766,7 @@ def main(argv: list[str] | None = None) -> int:
         "out": str(args.out),
         "bytes": args.out.stat().st_size,
         "vorschau": dict(datei=str(args.svg), bytes=args.svg.stat().st_size, **svg_stats),
+        "karte": dict(datei=str(args.card), bytes=args.card.stat().st_size, **card_stats),
         "nodes": len(nodes),
         "edges": len(edges),
         "container": len(container_idx),

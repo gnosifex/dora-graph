@@ -11,10 +11,11 @@ Five families of checks:
   * the geometry, for BOTH layouts (final picture and pre-impact pack): zero overlaps in
                 every pair category, containment, uniform unit radii, the free-node cap,
                 label collisions, connectivity, and the 1,5 x DORA distance guard rail
-  * the preview image docs/preview.svg: well-formed XML, one circle per graph node,
-                nothing that a README host would strip or refuse to fetch, and a
-                readability pass — everything inside the viewBox, no label collisions,
-                enough contrast against the painted ground
+  * the two still images, docs/preview.svg and docs/social-card.svg: well-formed XML,
+                one circle per graph node, nothing that a host would strip or refuse to
+                fetch, and a readability pass — nothing outside the frame, no label
+                sitting on a circle or under the chrome, enough contrast against the
+                painted ground; the card additionally holds GitHub's 40 pt guard
 
 Exits non-zero as soon as one check fails.
 """
@@ -164,13 +165,93 @@ def check_js(html: str) -> str:
     ok('li.addEventListener("click"' in js and "sel = (sel === key) ? null : key" in js,
        "legend: a rank row toggles the highlight")
     ok('fold.addEventListener("click"' in js, "legend: collapsible")
+    ok('nf.addEventListener("click"' in js and "setNote(stored(NKEY)" in js,
+       "legend: the reading notes are their own fold, restored from storage")
     ok("setLineDash(full ? [6 * scale, 4 * scale] : [2.5 * scale, 5 * scale])" in js,
        "supersession edges still red dashed/dotted")
     ok("if (n.partial) ctx.setLineDash([4.5 * scale, 3.5 * scale])" in js,
        "estimate rings still dashed")
-    ok('DUR = { prop: 45, compact: 30 }' in js, "proportional 45 s / compact 30 s")
+    ok('SPAN = { prop: 45, compact: 30 }' in js, "proportional 45 s / compact 30 s")
     ok("nodes[IMP.k].born" in js and "IMP.reach" in js, "impact ring pulse present")
+    check_endstate(js)
     return js
+
+
+def check_endstate(js: str) -> None:
+    """The last frame has to be the still image.
+
+    Two things have to hold, and they are checked separately because they fail
+    separately: the clock has to run on past the last appearance long enough for the
+    fade and the settling spring to finish, and the end has to be set as a state so
+    that jumping straight to it cannot show a half-finished frame.
+    """
+    print("\n== timeline: the end is the still image")
+
+    def num(name: str) -> float | None:
+        m = re.search(rf"\b{name} = (-?[0-9.]+)", js)
+        return float(m.group(1)) if m else None
+
+    fade, spring, keep = num("FADE"), num("SPRING"), num("KEEP")
+    born_max, born_min = num("BORN_MAX"), num("BORN_MIN")
+    spans = re.search(r"SPAN = \{ prop: ([0-9.]+), compact: ([0-9.]+) \}", js)
+    ok(None not in (fade, spring, keep, born_max, born_min) and spans is not None,
+       "the run-out is built from named constants, not a magic number")
+    if None in (fade, spring, keep, born_max, born_min) or spans is None:
+        return
+
+    # the same arithmetic the page does, redone here: an over-damped spring
+    # x'' + DECAY x' + SPRING x = 0 leaves the slow root as the one that decides
+    decay = -math.log(keep)
+    ok(decay * decay - 4 * spring > 0, "the settling spring is over-damped, so it "
+       "cannot ring", f"decay {decay:.3f} vs 2*sqrt(pull) {2 * math.sqrt(spring):.3f}")
+    rate = (decay - math.sqrt(max(decay * decay - 4 * spring, 0))) / 2
+    settle = math.log(born_max / 0.1) / rate
+    tail = fade + settle
+    ok(re.search(r"TAIL = FADE \+ Math\.log\(BORN_MAX / 0\.1\) / RATE", js) is not None,
+       "the page derives the run-out rather than guessing it", f"{tail:.2f} s")
+    ok(tail >= fade + 2.0, "the run-out covers the fade and the settling",
+       f"fade {fade:g} s + settle {settle:.2f} s = {tail:.2f} s")
+    # The formula solves for a residue of a tenth of a design unit, so restating that is
+    # no test. What is worth asserting is that the target is small against the thing it
+    # is a residue of — the smallest offset a node is ever born with.
+    ok(0.1 <= 0.05 * born_min, "the run-out aims well past the point where a node's "
+       "birth offset could still be seen",
+       f"0.1 units left of a {born_min:g}-{born_max:g} unit offset")
+    for name, sp in (("proportional", float(spans.group(1))),
+                     ("compact", float(spans.group(2)))):
+        # the last node appears at exactly the span, so it is the one with least time
+        ok(sp + tail - (sp + fade) >= 0 and sp + tail - (sp + settle) >= 0,
+           f"{name}: the last-born node finishes inside the timeline",
+           f"appears at {sp:g} s, needs {max(fade, settle):.2f} s, has {tail:.2f} s")
+
+    ok("function duration() { return span() + TAIL; }" in js,
+       "the played span is the appearances plus the run-out")
+    ok("function appearT(n) { return (mode === \"prop\" ? n.ap : n.ac) * span(); }" in js,
+       "the run-out does not stretch the appearance times")
+
+    print("\n== timeline: the date stops at the last document")
+    ok("function shown() { return Math.min(tNow / span(), 1); }" in js,
+       "there is a separate reading for how far the corpus has come")
+    dv = js.split("function currentDV", 1)[-1].split("}", 2)[0]
+    ok("shown()" in dv and "progress()" not in dv,
+       "the readout follows the corpus, not the animation clock")
+    ok("barFor(f)" in js.split("function buildTicks", 1)[-1],
+       "the year ticks sit on the bar the run-out lengthened")
+
+    print("\n== timeline: the end state is set, not settled into")
+    body = js.split("function settleAll", 1)[-1].split("function step", 1)[0]
+    for frag, label in (("n.born = true; n.a = 1;", "every node fully opaque"),
+                        ("n.x = n.sx; n.y = n.sy;", "every node on its solved seat"),
+                        ("n.vx = 0; n.vy = 0;", "nothing left moving")):
+        ok(frag in body, f"at the end: {label}")
+    ok("for (var q = 0; q < nodes.length; q++)" in body,
+       "the end state covers every node, not just the visible ones")
+    ok("if (tNow >= duration()) return settleAll();" in js,
+       "reaching the end by any route gives that state in the same frame")
+    # and backwards out of it again
+    tail_free = js.split("if (tNow >= duration()) return settleAll();", 1)[-1]
+    ok("} else { n.born = false; n.a = 0; }" in tail_free,
+       "scrubbing back before a node's date un-births it again")
 
 
 # The only address the page may carry. Everything else it needs it draws or generates
@@ -218,10 +299,113 @@ def check_opening(html: str, js: str) -> None:
     ok('store(SKEY,' in js and 'stored(SKEY) === "1"' in js, "sound state in localStorage")
     ok("createOscillator" in js and "createBuffer(" in js and "createBiquadFilter" in js,
        "the sound is generated in the browser")
-    ok("MASTER_MAX = 0.16" in js and "lvl * MASTER_MAX" in js, "master level well under 1")
     ok("soundBtn.disabled = true" in js, "no sound under reduced motion")
     ok("impactRaw()" in js.split("function audioUpdate", 1)[-1].split("function setSound", 1)[0],
        "the swell follows the impact")
+
+    # The register decides whether the sound exists at all on a phone: a handset speaker
+    # radiates next to nothing below ~400 Hz, so the parts that carry it must sit above
+    # the fundamental, and the fundamental itself must be up out of the cellar.
+    voices = re.search(r"var VOICES = \[(.*?)\];", js, re.S)
+    ok(voices is not None, "the partials are declared as one table")
+    rows = [[float(v) for v in r.split(",")]
+            for r in re.findall(r"\[([^\[\]]+)\]", voices.group(1))] if voices else []
+    freqs = sorted(r[0] for r in rows)
+    ok(len(rows) >= 4, "three to four partials at least, plus the sub", f"{len(rows)}")
+    carry = [f for f in freqs if f >= 180.0]
+    ok(len(carry) >= 3 and 180.0 <= carry[0] <= 260.0,
+       "fundamental in the band a small speaker reproduces",
+       f"{carry[0]:g} Hz, carrying {len(carry)}")
+    ok(max(freqs) >= 500.0, "a partial high enough to survive a phone speaker",
+       f"top {max(freqs):g} Hz")
+    sub = [f for f in freqs if f < 180.0]
+    ok(len(sub) <= 1 and (not sub or sum(r[2] for r in rows if r[0] == sub[0])
+                          <= 0.5 * sum(r[2] for r in rows if r[0] >= 180.0)),
+       "the sub is a floor, not something the sound leans on",
+       f"{sub[0]:g} Hz" if sub else "none")
+    ratios = sorted(round(f / carry[0], 3) for f in freqs)
+    ok(all(abs(r * 2 - round(r * 2)) < 0.02 for r in ratios),
+       "every partial is consonant with the fundamental", str(ratios))
+    # a hair of detune keeps the stack from sounding computed; a whole beat is the hum
+    # the old surface had
+    ok(all(abs(r[1]) <= 12.0 for r in rows), "detune stays inside a few cents",
+       str([r[1] for r in rows]))
+    rates = [r[4] for r in rows]
+    ok(all(0.02 <= x <= 0.07 for x in rates), "every breath is slower than one cycle "
+       "in fifteen seconds", str(rates))
+    ok(len(set(rates)) == len(rates) and len({r[5] for r in rows}) == len(rows),
+       "no two partials breathe at the same rate or phase")
+    ok("createPeriodicWave" in js, "the breath phases are built, not left to chance")
+    cut = re.search(r'lp\.type = "lowpass"; lp\.frequency\.value = ([0-9.]+)', js)
+    ok(cut is not None and 1200.0 <= float(cut.group(1)) <= 1800.0,
+       "the pad sits under a gentle low-pass", cut.group(1) if cut else "")
+
+    print("\n== sound: level and iOS")
+    top = re.search(r"MASTER_MAX = ([0-9.]+)", js)
+    peak = float(top.group(1)) if top else 1.0
+    worst = peak * (sum(r[2] + r[3] for r in rows) + 0.12)
+    ok(0.05 <= peak <= 0.2, "master ceiling audible but discreet", f"{peak:g}")
+    ok(worst < 0.6, "the partials cannot add up to a clipped sample",
+       f"worst case {worst:.3f} of full scale")
+    ok("window.AudioContext || window.webkitAudioContext" in js,
+       "the context is found under both names")
+    setter = js.split("function setSound", 1)[-1].split("soundBtn.addEventListener", 1)[0]
+    ok("actx.resume" in setter, "resume is asked for inside the gesture")
+    ok('actx.state === "running"' in setter,
+       "the switch believes the context, not the request")
+    ok("SND_BLOCKED" in setter and "soundState(false, SND_BLOCKED)" in setter,
+       "a context that will not start drops the switch back visibly")
+    ok("Stummschalter" in html, "the iPhone mute switch is named where the user is")
+
+
+def prose(fragment: str) -> str:
+    """The running text a reader actually faces: markup, the rank rows the legend is
+    built from, and their counts are not prose and are not counted as such."""
+    txt = re.sub(r"<[^>]+>", " ", fragment)
+    return " ".join(txt.split())
+
+
+def check_legend(html: str) -> None:
+    """The legend decodes the picture; it does not explain it.
+
+    Everything the opening already says was moved out of here, so the panel stays short
+    enough to read at a glance, and the two things that must never be hidden — the
+    caveat and the way back to the sources — sit outside both folds.
+    """
+    print("\n== legend")
+    panel = html.split('id="legend"', 1)[-1].split("</div>\n\n<div class=\"panel\"", 1)[0]
+    note = re.search(r'<div class="note" id="note" hidden>(.*?)</div>', panel, re.S)
+    ok(note is not None, "the reading notes are a section of their own")
+    if note is None:
+        return
+    folded = prose(note.group(1))
+    # the panel heading and the fold's own label are controls, not prose — they name
+    # what is there, they do not explain the picture
+    rest = panel.replace(note.group(0), " ")
+    rest = re.sub(r"<h2>.*?</h2>", " ", rest, flags=re.S)
+    rest = re.sub(r'<button id="notefold".*?</button>', " ", rest, flags=re.S)
+    visible = prose(rest)
+    ok(len(visible) < 220, "the legend a reader faces stays under 220 characters",
+       f"{len(visible)} chars: {visible[:70]}…")
+    ok(len(folded) < 380, "the folded notes stay under 380 characters",
+       f"{len(folded)} chars")
+    ok('id="note" hidden' in panel and 'aria-expanded="false"' in panel,
+       "the notes are shut when the page loads")
+    ok("Keine Rechtsberatung." in visible,
+       "the caveat is outside the fold, where it cannot be hidden")
+    ok('class="caveat"' in panel and panel.index('id="note"') < panel.index('class="caveat"'),
+       "the caveat stands after the fold, not inside it")
+    ok("Klick auf eine Zeile" in panel and "Klick auf eine Zeile" not in visible,
+       "the click hint is a tooltip on the list, not another line of prose")
+    bar = html.split('id="bar"', 1)[-1]
+    ok('id="repo"' in bar and REPO_URL in bar,
+       "the repo link sits in the bar, clear of both folds")
+    ok('target="_blank"' in bar.split('id="repo"', 1)[-1][:220]
+       and 'rel="noopener"' in bar.split('id="repo"', 1)[-1][:220],
+       "the repo link opens safely in a new tab")
+    ok('id="repo"' not in panel, "the repo link is not inside the legend any more")
+    ok("max-height: calc(100vh" in html and "overflow-y: auto" in html,
+       "a low window scrolls the legend instead of cutting it off")
 
 
 def check_selfcontained(html: str) -> None:
@@ -478,46 +662,42 @@ SVG_FORBIDDEN_TEXT = ("href", "xlink", "url(", "@import", "data:", "<!ENTITY",
                       "javascript:", "class=")
 
 
-def check_preview(path: Path, graph: dict) -> None:
-    print("\n== preview image")
+def load_svg(path: Path, name: str, cap: int) -> tuple[str, object] | tuple[None, None]:
+    """Open one of the still images and clear it of anything a host may strip."""
+    print(f"\n== {name}")
     ok(path.exists(), f"{path} present")
     if not path.exists():
-        return
+        return None, None
     raw = path.read_text(encoding="utf-8")
     size = len(raw.encode("utf-8"))
-    ok(size < 400_000, "under 400 kB", f"{size / 1024:.0f} kB")
-
-    root = None
+    ok(size < cap, f"under {cap // 1000} kB", f"{size / 1024:.0f} kB")
     try:
         root = ET.fromstring(raw)
     except ET.ParseError as exc:
         ok(False, "well-formed XML", str(exc))
-        return
+        return None, None
     ok(True, "well-formed XML")
     ok(root.tag == f"{{{SVG_NS}}}svg", "root element is <svg>", root.tag)
-
-    print("\n== preview: nothing to fetch, nothing to strip")
     for tag in SVG_FORBIDDEN_TAGS:
         ok(not any(True for _ in root.iter(f"{{{SVG_NS}}}{tag}")), f"no <{tag}> element")
     for frag in SVG_FORBIDDEN_TEXT:
         ok(frag not in raw, f"nothing that resolves elsewhere: {frag}")
     urls = sorted(set(re.findall(r"https?://[^\s\"'<>)]+", raw)))
     ok(urls == [SVG_NS], "the SVG namespace is the only URL in the file", str(urls[:4]))
+    return raw, root
 
-    print("\n== preview: standalone geometry")
+
+def svg_frame(root) -> tuple[float, float, tuple, str]:
+    """viewBox, size and the painted ground — the three things a standalone file owes."""
     view = [float(v) for v in (root.get("viewBox") or "").split()]
     ok(len(view) == 4 and view[2] > 0 and view[3] > 0, "viewBox present and non-empty",
        root.get("viewBox"))
     if len(view) != 4:
-        return
+        return 0.0, 0.0, (0.0, 0.0, 0.0, 0.0), ""
     w, h = float(root.get("width", 0)), float(root.get("height", 0))
     ok(w > 0 and h > 0, "explicit width and height on the root", f"{w:g} x {h:g}")
     ok(abs(view[2] - w) < 1e-6 and abs(view[3] - h) < 1e-6,
        "viewBox agrees with width/height")
-    ok(1.15 <= w / h <= 2.15, "aspect in the band a README column reads well",
-       f"{w / h:.3f}")
-    box_v = (view[0], view[1], view[0] + w, view[1] + h)
-
     painted = [e for e in root if e.tag not in (f"{{{SVG_NS}}}title", f"{{{SVG_NS}}}desc")]
     first = painted[0] if painted else None
     ground = (first.get("fill") or "") if first is not None else ""
@@ -527,26 +707,12 @@ def check_preview(path: Path, graph: dict) -> None:
        and float(first.get("width", 0)) >= w and float(first.get("height", 0)) >= h
        and re.fullmatch(r"#[0-9a-fA-F]{6}", ground) is not None,
        "the ground is a painted full-bleed rectangle, not transparency", ground)
-    if not re.fullmatch(r"#[0-9a-fA-F]{6}", ground):
-        return          # without a known ground the readability pass has no reference
+    return w, h, (view[0], view[1], view[0] + w, view[1] + h), ground
 
-    print("\n== preview: drawn against data/graph.json")
-    circles = [(float(c.get("cx", 0)), float(c.get("cy", 0)), float(c.get("r", 0)))
-               for c in root.iter(f"{{{SVG_NS}}}circle")]
-    ok(len(circles) == len(graph["nodes"]), "one circle drawn per graph node",
-       f"{len(circles)} vs {len(graph['nodes'])}")
-    labels = root.find(f".//{{{SVG_NS}}}g[@id='beschriftung']")
-    texts = list(labels) if labels is not None else []
-    want = {n["title"].split(" (")[0].strip()
-            for n in graph["nodes"] if n["kind"] == "container"}
-    ok({t.text for t in texts} == want, "every act circle carries its label",
-       f"{len(texts)} labels")
-    halo_group = root.find(f".//{{{SVG_NS}}}g[@id='beschriftung-halo']")
-    halos = list(halo_group) if halo_group is not None else []
-    ok(len(halos) == len(texts) and [t.text for t in halos] == [t.text for t in texts],
-       "each label is backed by its own halo copy", f"{len(halos)} halos")
 
-    print("\n== preview: readability")
+def svg_text_boxes(root, ground: str) -> dict:
+    """Every text element with its box, the colour it is actually seen in, and the
+    contrast WCAG asks of a text that size and weight."""
     all_text = list(root.iter(f"{{{SVG_NS}}}text"))
     styled = [t for t in all_text
               if float(t.get("font-size", 0)) > 0 and t.get("font-family")
@@ -554,53 +720,160 @@ def check_preview(path: Path, graph: dict) -> None:
     ok(len(styled) == len(all_text) and bool(styled),
        "every text carries its own font, size and literal fill",
        f"{len(styled)}/{len(all_text)} text elements")
-
-    # box, seen colour and the contrast floor WCAG puts on a text of that weight
-    boxes: dict[object, tuple] = {}
+    out = {}
     for t in styled:
         fs, weight = float(t.get("font-size")), int(t.get("font-weight", 400))
         tw = text_width(t.text or "", fs)
         x, y = float(t.get("x", 0)), float(t.get("y", 0))
         anchor = t.get("text-anchor", "start")
         x0 = x - tw / 2 if anchor == "middle" else x - tw if anchor == "end" else x
-        boxes[t] = ((x0, y - fs * 0.80, x0 + tw, y + fs * 0.25),
-                    blend(t.get("fill"), ground, float(t.get("fill-opacity", 1.0))),
-                    3.0 if fs >= 24 or (fs >= 18.66 and weight >= 600) else 4.5)
+        out[t] = ((x0, y - fs * 0.80, x0 + tw, y + fs * 0.25),
+                  blend(t.get("fill"), ground, float(t.get("fill-opacity", 1.0))),
+                  3.0 if fs >= 24 or (fs >= 18.66 and weight >= 600) else 4.5)
+    return out
 
-    outside = [t.text for t, (b, _, _) in boxes.items() if not box_inside(b, box_v)]
-    ok(not outside, "no text runs out of the viewBox", str(outside[:3]))
-    off = [f"{cx:.0f},{cy:.0f}" for cx, cy, r in circles
-           if not box_inside((cx - r, cy - r, cx + r, cy + r), box_v)]
-    ok(not off, "every node sits inside the viewBox", str(off[:3]))
 
-    # the two chrome plates: the rounded rects in the frame group, told apart from the
-    # legend swatches by their corner radius
-    frame = root.find(f".//{{{SVG_NS}}}g[@id='rahmen']")
-    plates = [(float(r.get("x", 0)), float(r.get("y", 0)),
-               float(r.get("x", 0)) + float(r.get("width", 0)),
-               float(r.get("y", 0)) + float(r.get("height", 0)))
-              for r in (frame if frame is not None else []) if r.get("rx") == "12"]
-    ok(len(plates) == 2, "title plate and legend plate found", f"{len(plates)} plates")
+def group(root, gid: str) -> list:
+    found = root.find(f".//{{{SVG_NS}}}g[@id='{gid}']")
+    return list(found) if found is not None else []
 
-    print("\n== preview: act labels stand free")
+
+def as_circles(elements) -> list[tuple[float, float, float]]:
+    return [(float(c.get("cx", 0)), float(c.get("cy", 0)), float(c.get("r", 0)))
+            for c in elements]
+
+
+def check_contrast(boxes: dict, ground: str) -> None:
+    """A backing copy is a text painted and stroked in the ground colour — it is what
+    the visible text is read *through*, so it is measured as the halo it is, not as
+    text. Every one of them has to be answered by a visible twin at the same spot,
+    otherwise the file would carry a label nobody can see."""
+    backing = {t for t in boxes
+               if (t.get("fill") or "").lower() == ground.lower() and t.get("stroke")}
+    visible = {t for t in boxes if t not in backing}
+    seats = {(t.text, t.get("x"), t.get("y")) for t in visible}
+    orphan = [t.text for t in backing if (t.text, t.get("x"), t.get("y")) not in seats]
+    ok(not orphan, "every halo is answered by a visible text", str(orphan[:3]))
+    # Light text on a dark ground: measuring against the darkest paint in the file is
+    # the conservative reading — the panels only ever sit lighter than it.
+    scored = sorted((contrast_ratio(boxes[t][1], ground) - boxes[t][2],
+                     boxes[t][1], boxes[t][2]) for t in visible)
+    ok(bool(scored) and scored[0][0] >= 0, "every text clears its contrast floor",
+       f"worst {scored[0][1]}: {scored[0][0] + scored[0][2]:.2f} >= {scored[0][2]}"
+       if scored else "")
+
+
+def check_labels_free(boxes: dict, texts: list, circles: list, blocks: list,
+                      what: str) -> None:
+    """The three ways an act name can stop naming its own circle."""
     lb = [(t.text, boxes[t][0]) for t in texts if t in boxes]
     clash = [(lb[i][0], lb[j][0]) for i in range(len(lb) - 1) for j in range(i + 1, len(lb))
              if boxes_overlap(lb[i][1], lb[j][1])]
     ok(not clash, "no label overlaps another label", str(clash[:2]))
     on_node = sorted({name for name, b in lb for c in circles if box_hits_circle(b, c)})
     ok(not on_node, "no label sits on a circle or a dot", str(on_node[:4]))
-    on_plate = sorted({name for name, b in lb for p in plates if boxes_overlap(b, p)})
-    ok(not on_plate, "no label runs under the title or legend plate", str(on_plate[:3]))
+    on_block = sorted({name for name, b in lb for p in blocks if boxes_overlap(b, p)})
+    ok(not on_block, f"no label runs under {what}", str(on_block[:3]))
 
-    # Light text on a dark ground: measuring against the darkest paint in the file is
-    # the conservative reading — the panels only ever sit lighter than it. The halo
-    # copies are background-coloured by design; they are read through, not read.
-    backing = set(halos)
-    scored = sorted((contrast_ratio(seen, ground) - need, seen, need, t.text or "")
-                    for t, (_, seen, need) in boxes.items() if t not in backing)
-    ok(bool(scored) and scored[0][0] >= 0, "every text clears its contrast floor",
-       f"worst {scored[0][1]}: {scored[0][0] + scored[0][2]:.2f} >= {scored[0][2]}"
-       if scored else "")
+
+def check_preview(path: Path, graph: dict) -> None:
+    raw, root = load_svg(path, "preview image", 400_000)
+    if root is None:
+        return
+    print("\n== preview: standalone geometry")
+    w, h, box_v, ground = svg_frame(root)
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", ground):
+        return          # without a known ground the readability pass has no reference
+    ok(1.15 <= w / h <= 2.15, "aspect in the band a README column reads well",
+       f"{w / h:.3f}")
+
+    print("\n== preview: drawn against data/graph.json")
+    circles = as_circles(root.iter(f"{{{SVG_NS}}}circle"))
+    ok(len(circles) == len(graph["nodes"]), "one circle drawn per graph node",
+       f"{len(circles)} vs {len(graph['nodes'])}")
+    acts = as_circles(group(root, "akte"))
+    want = {n["title"].split(" (")[0].strip()
+            for n in graph["nodes"] if n["kind"] == "container"}
+    ok(len(acts) == len(want), "one ring per act", f"{len(acts)} vs {len(want)}")
+    texts = group(root, "beschriftung")
+    ok({t.text for t in texts} == want, "every act circle carries its label",
+       f"{len(texts)} labels")
+    halos = group(root, "beschriftung-halo")
+    ok(len(halos) == len(texts) and [t.text for t in halos] == [t.text for t in texts],
+       "each label is backed by its own halo copy", f"{len(halos)} halos")
+
+    print("\n== preview: readability")
+    boxes = svg_text_boxes(root, ground)
+    outside = [t.text for t, (b, _, _) in boxes.items() if not box_inside(b, box_v)]
+    ok(not outside, "no text runs out of the viewBox", str(outside[:3]))
+    off = [f"{cx:.0f},{cy:.0f}" for cx, cy, r in circles
+           if not box_inside((cx - r, cy - r, cx + r, cy + r), box_v)]
+    ok(not off, "every node sits inside the viewBox", str(off[:3]))
+    # the two chrome plates: the rounded rects in the frame group, told apart from the
+    # legend swatches by their corner radius
+    plates = [(float(r.get("x", 0)), float(r.get("y", 0)),
+               float(r.get("x", 0)) + float(r.get("width", 0)),
+               float(r.get("y", 0)) + float(r.get("height", 0)))
+              for r in group(root, "rahmen") if r.get("rx") == "12"]
+    ok(len(plates) == 2, "title plate and legend plate found", f"{len(plates)} plates")
+
+    print("\n== preview: act labels stand free")
+    check_labels_free(boxes, texts, circles, plates, "the title or legend plate")
+    check_contrast(boxes, ground)
+
+
+# GitHub's social preview template: 1280 x 640, and a 40 pt guard around anything that
+# matters because some contexts crop the card — 80 px per edge at this pixel size.
+CARD_W, CARD_H, CARD_SAFE = 1280.0, 640.0, 80.0
+
+
+def check_card(path: Path, graph: dict) -> None:
+    raw, root = load_svg(path, "social preview card", 400_000)
+    if root is None:
+        return
+    print("\n== card: GitHub's card format")
+    w, h, box_v, ground = svg_frame(root)
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", ground):
+        return
+    ok(w == CARD_W and h == CARD_H, "1280 x 640 exactly", f"{w:g} x {h:g}")
+    ok(box_v == (0.0, 0.0, CARD_W, CARD_H), "viewBox anchored at 0 0",
+       root.get("viewBox"))
+    safe = (CARD_SAFE, CARD_SAFE, CARD_W - CARD_SAFE, CARD_H - CARD_SAFE)
+
+    circles = as_circles(root.iter(f"{{{SVG_NS}}}circle"))
+    ok(len(circles) == len(graph["nodes"]), "one circle drawn per graph node",
+       f"{len(circles)} vs {len(graph['nodes'])}")
+    acts = as_circles(group(root, "akte"))
+    want = {n["title"].split(" (")[0].strip()
+            for n in graph["nodes"] if n["kind"] == "container"}
+    ok(len(acts) == len(want), "one ring per act", f"{len(acts)} vs {len(want)}")
+    texts = group(root, "beschriftung")
+    halos = group(root, "beschriftung-halo")
+    named = [t.text for t in texts]
+    ok(named and set(named) <= want, "the named acts are real acts", ", ".join(named))
+    ok(len(halos) == len(texts), "each label is backed by its own halo copy")
+
+    print("\n== card: 40 pt safe area held")
+    boxes = svg_text_boxes(root, ground)
+    out_text = [t.text for t, (b, _, _) in boxes.items() if not box_inside(b, safe)]
+    ok(not out_text, "no text reaches into the guard", str(out_text[:3]))
+    out_act = [f"{cx:.0f},{cy:.0f}" for cx, cy, r in acts
+               if not box_inside((cx - r, cy - r, cx + r, cy + r), safe)]
+    ok(not out_act, "no act circle reaches into the guard", str(out_act[:3]))
+    swatches = [(float(r.get("x", 0)), float(r.get("y", 0)),
+                 float(r.get("x", 0)) + float(r.get("width", 0)),
+                 float(r.get("y", 0)) + float(r.get("height", 0)))
+                for r in group(root, "rahmen") if r.tag == f"{{{SVG_NS}}}rect"]
+    ok(all(box_inside(s, safe) for s in swatches),
+       "no colour chip reaches into the guard", f"{len(swatches)} chips")
+    off = [f"{cx:.0f},{cy:.0f}" for cx, cy, r in circles
+           if not box_inside((cx - r, cy - r, cx + r, cy + r), box_v)]
+    ok(not off, "every node still sits inside the card", str(off[:3]))
+
+    print("\n== card: act labels stand free")
+    chrome = [boxes[t][0] for t in group(root, "rahmen") if t in boxes]
+    check_labels_free(boxes, texts, circles, chrome, "the title or the colour key")
+    check_contrast(boxes, ground)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -611,6 +884,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="built page (default: %(default)s)")
     ap.add_argument("--svg", type=Path, default=Path("docs/preview.svg"),
                     help="built preview image (default: %(default)s)")
+    ap.add_argument("--card", type=Path, default=Path("docs/social-card.svg"),
+                    help="built social preview card (default: %(default)s)")
     args = ap.parse_args(argv)
 
     html = args.html.read_text(encoding="utf-8")
@@ -619,12 +894,14 @@ def main(argv: list[str] | None = None) -> int:
     check_file(html)
     js = check_js(html)
     check_opening(html, js)
+    check_legend(html)
     check_selfcontained(html)
     payload = load_payload(html)
     check_payload(payload, graph)
     check_assumptions(graph)
     check_geometry(payload)
     check_preview(args.svg, graph)
+    check_card(args.card, graph)
 
     print("\n" + ("ALL CHECKS PASSED" if not FAIL else f"{len(FAIL)} FAILED: {FAIL}"))
     return 1 if FAIL else 0
