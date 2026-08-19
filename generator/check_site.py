@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Verify docs/index.html against data/graph.json — file-based, no browser, no server.
 
-Three families of checks:
+Four families of checks:
   * the page:   placeholder replaced, script tags paired, JS structurally intact and
-                still carrying the render decisions the design depends on
+                still carrying the render decisions the design depends on, the opening
+                sequence and its sound wired the way the design requires, and the whole
+                document self-contained — no address but the repo link, nothing fetched
   * the payload the page embeds: field names, index ranges, date shapes, and agreement
                 with data/graph.json on counts, titles and supersession edges
   * the geometry, for BOTH layouts (final picture and pre-impact pack): zero overlaps in
@@ -41,7 +43,7 @@ def check_file(html: str) -> None:
     ok(html.rstrip().endswith("</html>"), "document complete")
 
 
-def check_js(html: str) -> None:
+def check_js(html: str) -> str:
     print("\n== JS block (structural)")
     js = re.search(r"<script>\n(.*?)\n</script>", html, re.S).group(1)
     ok("</script>" not in js, "no unescaped </script> inside the JS")
@@ -106,6 +108,67 @@ def check_js(html: str) -> None:
        "estimate rings still dashed")
     ok('DUR = { prop: 45, compact: 30 }' in js, "proportional 45 s / compact 30 s")
     ok("nodes[IMP.k].born" in js and "IMP.reach" in js, "impact ring pulse present")
+    return js
+
+
+# The only address the page may carry. Everything else it needs it draws or generates
+# itself, so the document works offline and asks nobody anything.
+REPO_URL = "https://github.com/gnosifex/dora-graph"
+
+
+def check_opening(html: str, js: str) -> None:
+    print("\n== opening sequence")
+    for frag in ('id="intro"', 'id="crawlwrap"', 'id="crawl"', 'id="stars"',
+                 'id="skip"', 'id="intro-again"'):
+        ok(frag in html, f"markup present: {frag}")
+    ok("perspective:" in html and "rotateX(" in html, "text plane runs back in perspective")
+    body = html.split('id="crawl"', 1)[-1].split("</div>", 1)[0]
+    for line in ("Ein Blick auf die digitale operationale Resilienz",
+                 "Die Geburt einer Regulatorik-Galaxie",
+                 "Keine Rechtsberatung."):
+        ok(line in body, f"crawl carries: {line[:44]}")
+    for name in ("function startIntro", "function finishIntro", "function introStep",
+                 "function introLayout", "function drawStars", "function seeded"):
+        ok(name in js, f"present: {name}")
+    ok('skipBtn.addEventListener("click"' in js, "skip: the button")
+    ok('intro.addEventListener("click"' in js, "skip: a click anywhere on the overlay")
+    ok('ev.key === "Escape"' in js, "skip: Esc")
+    ok('introActive && (ev.code === "Space"' in js, "skip: space bar")
+    ok("if (introActive) introStep(" in js, "the opening runs on the render clock")
+    dur = re.search(r"INTRO_DUR = (\d+)", js)
+    ok(bool(dur) and 30 <= int(dur.group(1)) <= 40, "opening runs 30-40 s",
+       dur.group(1) + " s" if dur else "not found")
+    ok("finishIntro();" in js and 'store(IKEY, "1")' in js, "seen state written to localStorage")
+    ok('stored(IKEY) === "1"' in js, "a returning visitor skips the opening")
+    ok('introBtn.addEventListener("click", function () { startIntro(); })' in js,
+       "the bar can replay the opening")
+    ok("prefers-reduced-motion" in js and "reduce) {" in js, "reduced motion honoured")
+    ok("Math.random()" not in js.split("function drawStars", 1)[-1].split("function introLayout", 1)[0],
+       "star field is seeded, not random")
+
+    print("\n== sound")
+    ok('id="sound"' in html and "♪ Ton" in html, "the bar carries the sound switch")
+    ok("var soundOn = false" in js, "sound off by default")
+    ok('soundBtn.addEventListener("click", function () { setSound(!soundOn); })' in js,
+       "sound starts on a user gesture only")
+    ok('document.addEventListener("pointerdown", arm)' in js,
+       "a remembered switch still waits for a gesture")
+    ok('store(SKEY,' in js and 'stored(SKEY) === "1"' in js, "sound state in localStorage")
+    ok("createOscillator" in js and "createBuffer(" in js and "createBiquadFilter" in js,
+       "the sound is generated in the browser")
+    ok("MASTER_MAX = 0.16" in js and "lvl * MASTER_MAX" in js, "master level well under 1")
+    ok("soundBtn.disabled = true" in js, "no sound under reduced motion")
+    ok("impactRaw()" in js.split("function audioUpdate", 1)[-1].split("function setSound", 1)[0],
+       "the swell follows the impact")
+
+
+def check_selfcontained(html: str) -> None:
+    print("\n== self-contained")
+    urls = sorted(set(re.findall(r"https?://[^\s\"'<>)]+", html)))
+    ok(urls == [REPO_URL], "the repo link is the only address in the document", str(urls[:4]))
+    for bad in ("<img", "<audio", "<video", "<iframe", "<link", "@import", "@font-face",
+                " src=", "fetch(", "XMLHttpRequest", "importScripts", "new Image("):
+        ok(bad not in html, f"nothing loaded: {bad.strip()}")
 
 
 def load_payload(html: str) -> dict:
@@ -357,7 +420,9 @@ def main(argv: list[str] | None = None) -> int:
     graph = json.loads(args.graph.read_text(encoding="utf-8"))
 
     check_file(html)
-    check_js(html)
+    js = check_js(html)
+    check_opening(html, js)
+    check_selfcontained(html)
     payload = load_payload(html)
     check_payload(payload, graph)
     check_assumptions(graph)
