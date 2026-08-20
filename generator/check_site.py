@@ -451,7 +451,9 @@ def check_legend(html: str, js: str) -> None:
     # 280, not the 220 of the older panel: the shapes the picture is built from are six,
     # not three — the plain grey line is 587 of its 590 edges and cannot go unnamed —
     # and a shape that is drawn has to be named where it is seen, not in the fold.
-    ok(len(visible) < 280, "the legend a reader faces stays under 280 characters",
+    # 340 since 2026-08-20: the licence line (© · PolyForm-NC · CC BY-NC) joined the
+    # caveat — a rights notice belongs where it cannot be folded away.
+    ok(len(visible) < 340, "the legend a reader faces stays under 340 characters",
        f"{len(visible)} chars: {visible[:70]}…")
 
     key = re.search(r'<div class="key">(.*?)\n  </div>', panel, re.S)

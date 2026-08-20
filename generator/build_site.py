@@ -780,6 +780,8 @@ def pull_strays(pos, radii, edges: list[tuple[int, int]], gap: float):
 HTML = r"""<!doctype html>
 <html lang="de">
 <head>
+<!-- Copyright (c) 2026 gnosifex — Code: PolyForm Noncommercial 1.0.0, Daten/Grafiken: CC BY-NC 4.0
+     https://github.com/gnosifex/dora-graph -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Die Geburt einer Regulatorik-Galaxie</title>
@@ -964,7 +966,7 @@ HTML = r"""<!doctype html>
   <div id="meta">
     <span id="counts">0 Knoten · 0 Kanten</span>
     <a id="repo" href="https://github.com/gnosifex/dora-graph" target="_blank"
-       rel="noopener" title="Daten, Code und Quellenliste">github.com/gnosifex/dora-graph</a>
+       rel="noopener" title="Daten, Code, Lizenzen und Quellenliste">github.com/gnosifex/dora-graph</a>
   </div>
 </div>
 
@@ -991,7 +993,8 @@ HTML = r"""<!doctype html>
     teilweise verdrängt.<br>
     Gezeigt wird der DORA-Ausschnitt des Korpus, nicht der Rechtsbestand.
   </div>
-  <div class="caveat">Indikativ und schematisch. Keine Rechtsberatung.</div>
+  <div class="caveat">Indikativ und schematisch. Keine Rechtsberatung.<br>
+    © 2026 gnosifex · Code PolyForm-NC 1.0.0 · Daten CC BY-NC 4.0</div>
 </div>
 
 <div class="panel" id="bar">

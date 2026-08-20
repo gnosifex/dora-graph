@@ -74,4 +74,7 @@ Inoffizielles Hobbyprojekt. **Keine Rechtsberatung.** Keine Verbindung zu den Eu
 
 ## Lizenz
 
-Code unter der MIT-Lizenz (siehe `LICENSE`). `data/graph.json` und `LINKS.md` enthalten Fundstellenangaben — Titel, Daten, Verweise und Links —, also Fakten über öffentlich publizierte Dokumente, keine Inhalte daraus.
+Zweigeteilt:
+
+- **Code** (`generator/`, die gebaute Seite `docs/index.html`, Workflows): [PolyForm Noncommercial 1.0.0](LICENSE) — nichtkommerzielle Nutzung, Änderung und Weitergabe frei, Copyright-Vermerk bleibt erhalten; **kommerzielle Nutzung nur mit vorheriger Zustimmung**.
+- **Daten und Grafiken** (`data/graph.json`, `LINKS.md`, die erzeugten Bilder unter `docs/`): [CC BY-NC 4.0](LICENSE-DATA) — Weitergabe und Bearbeitung nichtkommerziell mit Namensnennung; kommerzielle Nutzung nur mit vorheriger Zustimmung. Die Einzelangaben selbst — Titel, Daten, Verweise und Links — sind Fakten über öffentlich publizierte Dokumente, keine Inhalte daraus; die Rechte an den Dokumenten liegen bei den jeweiligen Herausgebern.
