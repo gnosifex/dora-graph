@@ -564,6 +564,14 @@ def check_mobile(html: str, js: str) -> None:
        "the hover path stays with the pointer that has one")
     ok("if (!best) { hideTip(); return false; }" in js,
        "a tap on empty space closes the tooltip again")
+    ok("function leaveUnlessTouch(ev)" in js
+       and 'cv.addEventListener("pointerleave", leaveUnlessTouch)' in js,
+       "a lifted finger does not count as leaving: WebKit fires pointerleave there")
+    ok("var wpx = host.clientWidth" in js and "px - placed < TICK_GAP" in js,
+       "the year labels are spaced in pixels, not in percent of an unknown width")
+    ok("buildTicks();" in js.split("function resize()", 1)[-1].split("function ", 1)[0],
+       "turning the phone re-spaces the year labels")
+    ok("touch-action: manipulation" in html, "the canvas does not wait for a double tap")
 
 
 def check_selfcontained(html: str, graph: dict) -> None:

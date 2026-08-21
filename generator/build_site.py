@@ -792,7 +792,9 @@ HTML = r"""<!doctype html>
   body { background: var(--bg); color: var(--fg); overflow: hidden;
     font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   #stage { position: fixed; inset: 0; }
-  canvas { display: block; width: 100%; height: 100%; }
+  /* manipulation, not none: the double-tap-to-zoom wait goes, which is what delays a tap
+     on iOS, but pinching to read a dense corner of the graph stays */
+  canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
   .panel { position: fixed; background: var(--panel); border: 1px solid var(--line);
     border-radius: 12px; backdrop-filter: blur(8px); }
   #head { top: 14px; left: 14px; padding: 10px 14px; }
@@ -1207,6 +1209,8 @@ HTML = r"""<!doctype html>
     for (q = 0; q < nodes.length; q++) {
       if (!nodes[q].born) { nodes[q].x = nodes[q].sx; nodes[q].y = nodes[q].sy; }
     }
+    // the year labels are spaced by pixels, so turning the phone has to re-space them
+    buildTicks();
   }
   window.addEventListener("resize", resize);
 
@@ -1474,17 +1478,25 @@ HTML = r"""<!doctype html>
     while (lo < hi) { mid = (lo + hi) >> 1; if (events[mid] < dv) lo = mid + 1; else hi = mid; }
     return lo / evLast;
   }
+  // A year is about 26 px wide at this size, so the gap between two of them has to be
+  // measured in pixels, not in percent of a bar whose width the phone decides. At the
+  // old fixed 3.6 % a 355 px bar left 13 px per label and every year ran into the next.
+  var TICK_GAP = 34;
   function buildTicks() {
     var host = document.getElementById("ticks");
     host.innerHTML = "";
+    var wpx = host.clientWidth || 1;
     var y0 = new Date(minDV * 86400000).getUTCFullYear();
     var y1 = new Date(maxDV * 86400000).getUTCFullYear();
-    var placed = -99;
+    var placed = -1e9;
     for (var y = y0; y <= y1; y++) {
       var f = fractionFor(Date.UTC(y, 0, 1) / 86400000);
       if (f < 0 || f > 1) continue;
-      if (barFor(f) * 100 - placed < 3.6) continue;
-      placed = barFor(f) * 100;
+      // greedy rather than a fixed step of years: the axis is not linear in time, so
+      // equal steps would not come out as equal distances
+      var px = barFor(f) * wpx;
+      if (px - placed < TICK_GAP) continue;
+      placed = px;
       var s = document.createElement("span");
       s.textContent = String(y);
       s.style.left = (barFor(f) * 100).toFixed(2) + "%";
@@ -1568,8 +1580,14 @@ HTML = r"""<!doctype html>
     tipTimer = setTimeout(hideNow, LINGER);
   }
   function keepTip() { if (tipTimer) { clearTimeout(tipTimer); tipTimer = 0; } }
+  // A touch pointer stops existing the moment the finger lifts, and the spec has the
+  // browser fire pointerout/pointerleave right then. WebKit obeys that, Chromium does
+  // not — and obeying it tears the card down at the end of the very tap that opened it.
+  // That is what made a tap look like it did nothing at all on iOS. A finger closes the
+  // card the way it always did: by tapping somewhere else.
+  function leaveUnlessTouch(ev) { if (ev.pointerType === "touch") return; hideTip(); }
   tip.addEventListener("pointerenter", keepTip);
-  tip.addEventListener("pointerleave", hideTip);
+  tip.addEventListener("pointerleave", leaveUnlessTouch);
   // "eur-lex.europa.eu" says where the click lands in the space a date used to take.
   // Split rather than match: this file carries no regular expressions.
   function hostOf(u) {
@@ -1628,7 +1646,7 @@ HTML = r"""<!doctype html>
     var want = (over && hot && hot.u) ? "pointer" : "default";
     if (want !== curCursor) { cv.style.cursor = curCursor = want; }
   });
-  cv.addEventListener("pointerleave", hideTip);
+  cv.addEventListener("pointerleave", leaveUnlessTouch);
   // Touch: a tap on a body opens its tooltip, the next tap anywhere else closes it.
   cv.addEventListener("pointerdown", function (ev) {
     lastKind = ev.pointerType;
