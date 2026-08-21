@@ -25,6 +25,8 @@ Die DORA-Regulatorik ist kein Dokument, sondern ein Geflecht: Die Verordnung ver
 
 Ein Klick auf eine Legendenzeile hebt die Knoten dieses Rangs hervor.
 
+Ein Klick auf einen Knoten — oder auf den Titel in seiner Hinweiskarte — öffnet das Dokument beim Herausgeber; auf einem Touchgerät öffnet ein Tippen erst die Karte und dann deren Titel die Quelle. Die Karte nennt Rang und Zieladresse, aber kein Datum: Ein Knoten ist nach der *ersten* Fassung seines Instruments datiert, während sein Titel und sein Link die Fassung nennen, auf die das Bild zeigt — bei der MaRisk liegen dazwischen neunzehn Jahre, und nebeneinander lesen sich die beiden als Widerspruch. Wann ein Knoten erscheint, sagt die Zeitleiste; die Datumsspalte führt `LINKS.md`. Die Seite lädt dabei weiterhin nichts nach — sie *nennt* die Adressen nur, abgerufen wird erst, was man selbst anklickt.
+
 ![Legende der Verbindlichkeitsränge: Rang 1 tiefrot bis Rang 7 blau, Standards violett, Erwägungsgründe grau](docs/legende.png)
 
 ## Was hier liegt — und was nicht

@@ -177,6 +177,16 @@ def check_js(html: str) -> str:
        "estimate rings still dashed")
     ok('SPAN = { prop: 45, compact: 30 }' in js, "proportional 45 s / compact 30 s")
     ok("nodes[IMP.k].born" in js and "IMP.reach" in js, "impact ring pulse present")
+    ok('tipT.setAttribute("href"' in js and 'tip.style.pointerEvents' in js,
+       "tooltip: the title is the link, and only a linking card takes the pointer")
+    ok("function hideNow()" in js and "setTimeout(hideNow, LINGER)" in js
+       and 'tip.addEventListener("pointerenter", keepTip)' in js,
+       "tooltip: hiding is deferred, so the pointer can reach the link")
+    ok("tipD.textContent = (LABEL[best.g]" in js and "hostOf(best.u)" in js,
+       "tooltip: the second line reads rank and host, not the first-appearance date")
+    ok('cv.addEventListener("click"' in js and "window.open(hot.u" in js
+       and 'lastKind === "touch"' in js,
+       "a body opens its source on click, and a tap is left to the card's own link")
     check_endstate(js)
     return js
 
@@ -556,10 +566,19 @@ def check_mobile(html: str, js: str) -> None:
        "a tap on empty space closes the tooltip again")
 
 
-def check_selfcontained(html: str) -> None:
+def check_selfcontained(html: str, graph: dict) -> None:
     print("\n== self-contained")
-    urls = sorted(set(re.findall(r"https?://[^\s\"'<>)]+", html)))
-    ok(urls == [REPO_URL], "the repo link is the only address in the document", str(urls[:4]))
+    # An address may now be *named* — the tooltip title links to the publisher — but
+    # none may be *fetched*, which is what the list below still guards. So the scan no
+    # longer asks for a single address; it asks that every address in the document is
+    # one this repository put there. That is the stricter question: it also proves no
+    # source URL was mangled on the way from graph.json into the page. Closing brackets
+    # stay inside a match, because two EBA files carry them in the path.
+    urls = set(re.findall(r"https?://[^\s\"'<>]+", html))
+    known = {n["url"] for n in graph["nodes"] if n.get("url")} | {REPO_URL}
+    stray = sorted(urls - known)
+    ok(not stray, "every address is a graph.json source or the repo link", str(stray[:3]))
+    ok(REPO_URL in urls, "the repo link is among them")
     for bad in ("<img", "<audio", "<video", "<iframe", "<link", "@import", "@font-face",
                 " src=", "fetch(", "XMLHttpRequest", "importScripts", "new Image("):
         ok(bad not in html, f"nothing loaded: {bad.strip()}")
@@ -580,7 +599,7 @@ def check_payload(d: dict, graph: dict) -> None:
     ok(not any(a == b for a, b, *_ in e_), "no self edges")
     kinds = [e for e in e_ if len(e) > 2]
     ok(all(e[2] in (1, 2) for e in kinds), "edge kinds valid", f"{len(kinds)} supersession edges")
-    ok(all(set(x) <= {"t", "d", "g", "s", "p", "r", "x", "y", "k", "cr", "c",
+    ok(all(set(x) <= {"t", "d", "g", "u", "s", "p", "r", "x", "y", "k", "cr", "c",
                       "lx", "ly", "px", "py", "qx", "qy"} for x in n_), "node fields known")
     ok(all(x["g"] in {p[0] for p in d["palette"]} for x in n_), "groups covered by the palette")
     ok(all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", x["d"]) for x in n_), "date fields well formed")
@@ -606,6 +625,8 @@ def check_payload(d: dict, graph: dict) -> None:
     ok({x["t"] for x in n_} == expect, "title set matches")
     ok([x["d"] for x in n_] == [g["date"] for g in g_nodes], "dates match, in order")
     ok([x["g"] for x in n_] == [g["group"] for g in g_nodes], "groups match, in order")
+    ok([x.get("u", "") for x in n_] == [g.get("url") or "" for g in g_nodes],
+       "sources match, in order", f"{sum(1 for x in n_ if x.get('u'))} of {len(n_)} linked")
     ok(sum(1 for x in n_ if x.get("k")) == meta["counts"]["containers"], "container count matches")
     ok([p[0] for p in d["palette"]] == [p["key"] for p in meta["palette"]], "palette carried over")
     ok(d.get("generated") == meta["generated"], "generated date carried over",
@@ -1050,7 +1071,7 @@ def main(argv: list[str] | None = None) -> int:
     check_legend(html, js)
     check_glyphs(html, js)
     check_mobile(html, js)
-    check_selfcontained(html)
+    check_selfcontained(html, graph)
     payload = load_payload(html)
     check_payload(payload, graph)
     check_assumptions(graph)

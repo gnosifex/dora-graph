@@ -890,8 +890,9 @@ HTML = r"""<!doctype html>
   #tip { position: fixed; pointer-events: none; z-index: 9; display: none;
     background: rgba(10,13,20,.95); border: 1px solid var(--line); border-radius: 8px;
     padding: 7px 10px; max-width: 340px; font-size: 12px; line-height: 1.35; }
-  #tip .tt { font-weight: 600; }
-  #tip .td { color: var(--dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  #tip .tt { display: block; font-weight: 600; color: var(--fg); text-decoration: none; }
+  #tip .tt[href]:hover { text-decoration: underline; }
+  #tip .td { color: var(--dim); margin-top: 2px; }
   /* opening sequence: a text plane running back into a seeded star field */
   #intro { position: fixed; inset: 0; z-index: 20; background: #04060b;
     transition: opacity .8s ease; }
@@ -1047,7 +1048,7 @@ HTML = r"""<!doctype html>
   <button id="skip" title="Vorspann überspringen (Esc, Leertaste oder Klick)">Überspringen</button>
 </div>
 
-<div id="tip"><div class="tt"></div><div class="td"></div></div>
+<div id="tip"><a class="tt" target="_blank" rel="noopener"></a><div class="td"></div></div>
 
 <script id="graph-data" type="application/json">__DATA__</script>
 <script>
@@ -1085,7 +1086,7 @@ HTML = r"""<!doctype html>
   var nodes = DATA.nodes.map(function (n) {
     var hasPre = n.px !== undefined;
     return {
-      t: n.t, d: n.d, g: n.g, cont: !!n.k, cr0: n.cr || 0, cr: n.cr || 0,
+      t: n.t, d: n.d, g: n.g, u: n.u || "", cont: !!n.k, cr0: n.cr || 0, cr: n.cr || 0,
       partial: !!n.p, size: n.s || 0, member: (n.c === undefined ? -1 : n.c),
       dv: Math.max(toDay(n.d), T0), realdv: toDay(n.d),
       tx: n.x, ty: n.y, r0: n.r, r: n.r, x: 0, y: 0, vx: 0, vy: 0, sx: 0, sy: 0,
@@ -1549,7 +1550,32 @@ HTML = r"""<!doctype html>
 
   var tip = document.getElementById("tip");
   var tipT = tip.querySelector(".tt"), tipD = tip.querySelector(".td");
-  function hideTip() { tip.style.display = "none"; }
+  var hot = null, tipTimer = 0;
+  // The title is a link to the publisher, so the tooltip has to survive the trip from
+  // the body to that link: the pointer leaves the body's catch radius long before it
+  // reaches the text, and every move in between would otherwise hide the card. Hiding
+  // is therefore deferred by the width of that gap, and arriving on the card cancels
+  // it — once the pointer is on the card the canvas sees no moves at all.
+  var LINGER = 250;
+  function hideNow() { tip.style.display = "none"; tipTimer = 0; hot = null; }
+  // Arming the timer is also the moment the card becomes catchable. While the pointer
+  // is still on a body the card must stay transparent, or it would swallow the pointer
+  // wherever it cannot dodge sideways any more — against the right edge its position is
+  // clamped, and a card that stops following there is a card the reader is stuck on.
+  function hideTip() {
+    if (tipTimer) return;
+    if (hot && hot.u) tip.style.pointerEvents = "auto";
+    tipTimer = setTimeout(hideNow, LINGER);
+  }
+  function keepTip() { if (tipTimer) { clearTimeout(tipTimer); tipTimer = 0; } }
+  tip.addEventListener("pointerenter", keepTip);
+  tip.addEventListener("pointerleave", hideTip);
+  // "eur-lex.europa.eu" says where the click lands in the space a date used to take.
+  // Split rather than match: this file carries no regular expressions.
+  function hostOf(u) {
+    var h = u.split("/")[2] || "";
+    return h.indexOf("www.") === 0 ? h.slice(4) : h;
+  }
   // A finger is wider than a mouse pointer and covers what it points at, so a tap gets a
   // larger catch radius and the tooltip is placed above the touch rather than beside it.
   function showTip(cx, cy, touch) {
@@ -1572,9 +1598,20 @@ HTML = r"""<!doctype html>
       }
     }
     if (!best) { hideTip(); return false; }
+    keepTip();
+    hot = best;
     tipT.textContent = best.t;
-    tipD.textContent = best.d + " · " + (LABEL[best.g] || best.g)
-      + (best.cont ? " · Rechtsakt" : "");
+    if (best.u) { tipT.setAttribute("href", best.u); } else { tipT.removeAttribute("href"); }
+    // No date here on purpose: a body is dated by the first appearance of its
+    // instrument, while its title and its link name the version the picture points at.
+    // For the MaRisk those are nineteen years apart, and side by side they read as a
+    // contradiction. The timeline says which date the frame stands at; LINKS.md keeps
+    // the column. The space goes to the host, which says where the click lands.
+    tipD.textContent = (LABEL[best.g] || best.g) + (best.cont ? " · Rechtsakt" : "")
+      + (best.u ? " · " + hostOf(best.u) : "");
+    // A tap leaves the card standing, so on touch it is the link straight away. Under a
+    // mouse it stays transparent until the pointer leaves the body — see hideTip.
+    tip.style.pointerEvents = (touch && best.u) ? "auto" : "none";
     tip.style.display = "block";
     var tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.max(Math.min(cx + (touch ? -tw / 2 : 14),
@@ -1582,15 +1619,30 @@ HTML = r"""<!doctype html>
     tip.style.top = Math.max(cy - th - (touch ? 22 : 12), 8) + "px";
     return true;
   }
+  var lastKind = "mouse", curCursor = "default";
   cv.addEventListener("pointermove", function (ev) {
     if (ev.pointerType === "touch") return;        // a touch has no hover to follow
-    showTip(ev.clientX, ev.clientY, false);
+    var over = showTip(ev.clientX, ev.clientY, false);
+    // written only on a change: this runs on every move, over a canvas already
+    // repainting itself every frame
+    var want = (over && hot && hot.u) ? "pointer" : "default";
+    if (want !== curCursor) { cv.style.cursor = curCursor = want; }
   });
   cv.addEventListener("pointerleave", hideTip);
   // Touch: a tap on a body opens its tooltip, the next tap anywhere else closes it.
   cv.addEventListener("pointerdown", function (ev) {
+    lastKind = ev.pointerType;
     if (ev.pointerType !== "touch") return;
     showTip(ev.clientX, ev.clientY, true);
+  });
+  // The body is the larger of the two ways to the same address, the link in the card
+  // the precise one. A finger gets only the second: its tap has just opened the card,
+  // and opening the source from under it would leave nothing to read.
+  cv.addEventListener("click", function (ev) {
+    if (lastKind === "touch") return;
+    if (showTip(ev.clientX, ev.clientY, false) && hot && hot.u) {
+      window.open(hot.u, "_blank", "noopener");
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -2281,6 +2333,7 @@ def load_graph(path: Path) -> tuple[list[dict], list[tuple[int, int]], dict[tupl
             "t": n["title"],
             "d": n["date"],
             "g": n["group"],
+            "u": n.get("url") or "",
             "rid": n["id"],
             "hub": n["kind"] == "container",
             "size": n.get("size", 0),
@@ -2573,6 +2626,9 @@ def main(argv: list[str] | None = None) -> int:
             "r": round(radii[i], 2),
             "x": round(xy[i][0] - cx, 1), "y": round(xy[i][1] - cy, 1),
         }
+        # the source at the publisher, so the tooltip title can be a link to it
+        if r["u"]:
+            node["u"] = r["u"]
         if i in cont_r:
             node["k"] = 1
             node["cr"] = round(cont_r[i], 2)
